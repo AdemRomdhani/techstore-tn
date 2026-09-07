@@ -26,7 +26,7 @@ const generateAccessToken = (user) => {
 };
 
 // Generate refresh token - persisted to DB
-const generateRefreshToken = (user) => {
+const generateRefreshToken = async (user) => {
   const tokenId = uuidv4();
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, tokenId },
@@ -34,7 +34,7 @@ const generateRefreshToken = (user) => {
     { expiresIn: REFRESH_TOKEN_EXPIRES }
   );
   try {
-    db.prepare('INSERT INTO refresh_tokens (id, user_id) VALUES (?, ?)').run(tokenId, user.id);
+    await db.prepare('INSERT INTO refresh_tokens (id, user_id) VALUES (?, ?)').run(tokenId, user.id);
   } catch (err) {
     console.error('Failed to store refresh token:', err.message);
   }
@@ -42,11 +42,11 @@ const generateRefreshToken = (user) => {
 };
 
 // Verify refresh token
-const verifyRefreshToken = (token) => {
+const verifyRefreshToken = async (token) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded.tokenId) return null;
-    const stored = db.prepare('SELECT id FROM refresh_tokens WHERE id = ? AND user_id = ?').get(decoded.tokenId, decoded.id);
+    const stored = await db.prepare('SELECT id FROM refresh_tokens WHERE id = ? AND user_id = ?').get(decoded.tokenId, decoded.id);
     if (!stored) return null;
     return decoded;
   } catch (err) {
@@ -55,9 +55,9 @@ const verifyRefreshToken = (token) => {
 };
 
 // Remove refresh token
-const removeRefreshToken = (tokenId) => {
+const removeRefreshToken = async (tokenId) => {
   try {
-    db.prepare('DELETE FROM refresh_tokens WHERE id = ?').run(tokenId);
+    await db.prepare('DELETE FROM refresh_tokens WHERE id = ?').run(tokenId);
   } catch (err) {
     // ignore
   }

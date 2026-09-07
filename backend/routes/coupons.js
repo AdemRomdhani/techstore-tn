@@ -7,9 +7,9 @@ const { auth, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
 // GET all coupons (admin)
-router.get('/', auth, adminOnly, (req, res) => {
+router.get('/', auth, adminOnly, async (req, res) => {
   try {
-    const coupons = db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
+    const coupons = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
     res.json({ coupons });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch coupons' });
@@ -17,7 +17,7 @@ router.get('/', auth, adminOnly, (req, res) => {
 });
 
 // POST create coupon (admin)
-router.post('/', auth, adminOnly, (req, res) => {
+router.post('/', auth, adminOnly, async (req, res) => {
   const { code, discount_percent, max_uses, expires_at } = req.body;
   if (!code || !discount_percent) {
     return res.status(400).json({ error: 'Code and discount_percent are required' });
@@ -26,14 +26,14 @@ router.post('/', auth, adminOnly, (req, res) => {
     return res.status(400).json({ error: 'Discount must be between 1 and 100' });
   }
   try {
-    const existing = db.prepare('SELECT id FROM coupons WHERE code = ?').get(code.toUpperCase());
+    const existing = await db.prepare('SELECT id FROM coupons WHERE code = ?').get(code.toUpperCase());
     if (existing) {
       return res.status(400).json({ error: 'Coupon code already exists' });
     }
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO coupons (code, discount_percent, max_uses, expires_at) VALUES (?, ?, ?, ?)'
     ).run(code.toUpperCase(), discount_percent, max_uses || 100, expires_at || null);
-    const coupon = db.prepare('SELECT * FROM coupons WHERE id = ?').get(Number(result.lastInsertRowid));
+    const coupon = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(Number(result.lastInsertRowid));
     res.status(201).json({ coupon });
   } catch (err) {
     console.error(err);
@@ -42,18 +42,18 @@ router.post('/', auth, adminOnly, (req, res) => {
 });
 
 // PUT update coupon (admin)
-router.put('/:id', auth, adminOnly, (req, res) => {
+router.put('/:id', auth, adminOnly, async (req, res) => {
   const { code, discount_percent, max_uses, expires_at, active } = req.body;
   try {
-    const existing = db.prepare('SELECT * FROM coupons WHERE id = ?').get(req.params.id);
+    const existing = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Coupon not found' });
 
     if (code && code.toUpperCase() !== existing.code) {
-      const dup = db.prepare('SELECT id FROM coupons WHERE code = ? AND id != ?').get(code.toUpperCase(), req.params.id);
+      const dup = await db.prepare('SELECT id FROM coupons WHERE code = ? AND id != ?').get(code.toUpperCase(), req.params.id);
       if (dup) return res.status(400).json({ error: 'Coupon code already exists' });
     }
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE coupons SET
         code = COALESCE(?, code),
         discount_percent = COALESCE(?, discount_percent),
@@ -69,7 +69,7 @@ router.put('/:id', auth, adminOnly, (req, res) => {
       active !== undefined ? (active ? 1 : 0) : null,
       req.params.id
     );
-    const coupon = db.prepare('SELECT * FROM coupons WHERE id = ?').get(req.params.id);
+    const coupon = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(req.params.id);
     res.json({ coupon });
   } catch (err) {
     console.error(err);
@@ -78,9 +78,9 @@ router.put('/:id', auth, adminOnly, (req, res) => {
 });
 
 // DELETE coupon (admin)
-router.delete('/:id', auth, adminOnly, (req, res) => {
+router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
-    db.prepare('DELETE FROM coupons WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM coupons WHERE id = ?').run(req.params.id);
     res.json({ message: 'Coupon deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete coupon' });

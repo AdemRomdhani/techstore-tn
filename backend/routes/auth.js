@@ -91,7 +91,7 @@ router.post(
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be 6+ chars'),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -100,19 +100,19 @@ router.post(
     const { name, email, password, phone } = req.body;
 
     try {
-      const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
       if (existing) {
         return res.status(400).json({ error: 'Email already registered' });
       }
 
       const hash = bcrypt.hashSync(password, 10);
-      const result = db
+      const result = await db
         .prepare('INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)')
         .run(name, email, hash, phone || null, 'customer');
 
-      const user = db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+      const user = await db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
       const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      const refreshToken = await generateRefreshToken(user);
 
       res.status(201).json({ user, token: accessToken, refreshToken });
     } catch (err) {
@@ -130,7 +130,7 @@ router.post(
     body('email').isEmail().normalizeEmail(),
     body('password').notEmpty(),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -146,7 +146,7 @@ router.post(
         return res.status(429).json({ error: `Too many failed attempts. Try again in ${minutes} minutes.` });
       }
 
-      const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
       if (!user) {
         recordFailedLogin(email, ip);
         return res.status(401).json({ error: 'Invalid credentials' });
@@ -161,7 +161,7 @@ router.post(
       resetLoginAttempts(email, ip);
       delete user.password;
       const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+      const refreshToken = await generateRefreshToken(user);
       res.json({ user, token: accessToken, refreshToken });
     } catch (err) {
       console.error(err);
@@ -171,9 +171,9 @@ router.post(
 );
 
 // GET CURRENT USER
-router.get('/me', auth, (req, res) => {
+router.get('/me', auth, async (req, res) => {
   try {
-    const user = db
+    const user = await db
       .prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?')
       .get(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -185,10 +185,10 @@ router.get('/me', auth, (req, res) => {
 });
 
 // UPDATE PROFILE
-router.put('/me', auth, (req, res) => {
+router.put('/me', auth, async (req, res) => {
   try {
     const { name, phone, address, city, zip, country, avatar } = req.body;
-    db.prepare(`
+    await db.prepare(`
       UPDATE users SET
         name = COALESCE(?, name),
         phone = COALESCE(?, phone),
@@ -200,7 +200,7 @@ router.put('/me', auth, (req, res) => {
       WHERE id = ?
     `).run(name, phone, address, city, zip, country, avatar || null, req.user.id);
 
-    const user = db
+    const user = await db
       .prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?')
       .get(req.user.id);
     res.json({ user });
@@ -218,20 +218,20 @@ router.put(
     body('currentPassword').notEmpty(),
     body('newPassword').isLength({ min: 6 }),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
     try {
       const { currentPassword, newPassword } = req.body;
-      const user = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+      const user = await db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
       if (!user) return res.status(404).json({ error: 'User not found' });
       if (!bcrypt.compareSync(currentPassword, user.password)) {
         return res.status(400).json({ error: 'Current password is incorrect' });
       }
       const hash = bcrypt.hashSync(newPassword, 10);
-      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
+      await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
       res.json({ message: 'Password updated' });
     } catch (err) {
       console.error(err);
@@ -244,7 +244,7 @@ router.put(
 router.post(
   '/forgot-password',
   [body('email').isEmail().normalizeEmail()],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -253,7 +253,7 @@ router.post(
     const { email } = req.body;
 
     try {
-      const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
       if (!user) {
         return res.json({ message: 'If the email exists, a reset link has been sent' });
       }
@@ -261,8 +261,8 @@ router.post(
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-      db.prepare('DELETE FROM password_resets WHERE email = ?').run(email);
-      db.prepare('INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)').run(email, token, expiresAt);
+      await db.prepare('DELETE FROM password_resets WHERE email = ?').run(email);
+      await db.prepare('INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)').run(email, token, expiresAt);
 
       res.json({ message: 'If the email exists, a reset link has been sent' });
     } catch (err) {
@@ -279,7 +279,7 @@ router.post(
     body('token').notEmpty().withMessage('Token required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be 6+ chars'),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -288,8 +288,8 @@ router.post(
     const { token, password } = req.body;
 
     try {
-      const record = db.prepare(
-        "SELECT * FROM password_resets WHERE token = ? AND used = 0 AND expires_at > datetime('now')"
+      const record = await db.prepare(
+        "SELECT * FROM password_resets WHERE token = ? AND used = 0 AND expires_at > NOW()"
       ).get(token);
 
       if (!record) {
@@ -297,8 +297,8 @@ router.post(
       }
 
       const hash = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET password = ? WHERE email = ?').run(hash, record.email);
-      db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(record.id);
+      await db.prepare('UPDATE users SET password = ? WHERE email = ?').run(hash, record.email);
+      await db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(record.id);
 
       res.json({ message: 'Password reset successful' });
     } catch (err) {
@@ -309,41 +309,41 @@ router.post(
 );
 
 // REFRESH TOKEN
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken) {
     return res.status(401).json({ error: 'Refresh token required' });
   }
 
-  const decoded = verifyRefreshToken(refreshToken);
+  const decoded = await verifyRefreshToken(refreshToken);
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 
-  const user = db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(decoded.id);
+  const user = await db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(decoded.id);
   if (!user) {
     return res.status(401).json({ error: 'User not found' });
   }
 
   // Rotate: remove old refresh token, issue new pair
-  removeRefreshToken(decoded.tokenId);
+  await removeRefreshToken(decoded.tokenId);
   const newAccessToken = generateAccessToken(user);
-  const newRefreshToken = generateRefreshToken(user);
+  const newRefreshToken = await generateRefreshToken(user);
 
   res.json({ token: newAccessToken, refreshToken: newRefreshToken });
 });
 
 // LOGOUT - delete refresh token (audit: was missing - tokens lived until expiry)
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   const { refreshToken } = req.body;
   if (refreshToken) {
-    const decoded = verifyRefreshToken(refreshToken);
+    const decoded = await verifyRefreshToken(refreshToken);
     if (decoded && decoded.tokenId) {
-      removeRefreshToken(decoded.tokenId);
+      await removeRefreshToken(decoded.tokenId);
     } else {
       try {
         const unverified = jwt.decode(refreshToken);
-        if (unverified && unverified.tokenId) removeRefreshToken(unverified.tokenId);
+        if (unverified && unverified.tokenId) await removeRefreshToken(unverified.tokenId);
       } catch (_) {}
     }
   }
@@ -351,9 +351,9 @@ router.post('/logout', (req, res) => {
 });
 
 // LOGOUT ALL - delete all refresh tokens for current user (requires auth)
-router.post('/logout-all', auth, (req, res) => {
+router.post('/logout-all', auth, async (req, res) => {
   try {
-    db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
+    await db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
     res.json({ message: 'Logged out from all devices' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to logout' });

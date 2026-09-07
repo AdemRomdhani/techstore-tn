@@ -7,7 +7,7 @@ const { auth, optionalAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // CREATE review (supports anonymous reviews)
-router.post('/', optionalAuth, (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   const { product_id, rating, comment, name } = req.body;
   if (!product_id || !rating) return res.status(400).json({ error: 'product_id and rating required' });
   if (rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating must be 1-5' });
@@ -18,7 +18,7 @@ router.post('/', optionalAuth, (req, res) => {
 
     let verified = 0;
     if (userId) {
-      const purchased = db.prepare(`
+      const purchased = await db.prepare(`
         SELECT 1 FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
         WHERE o.user_id = ? AND oi.product_id = ? AND o.status IN ('delivered','shipped','processing')
@@ -28,22 +28,22 @@ router.post('/', optionalAuth, (req, res) => {
     }
 
     if (userId) {
-      const existing = db.prepare('SELECT id FROM reviews WHERE user_id = ? AND product_id = ?').get(userId, product_id);
+      const existing = await db.prepare('SELECT id FROM reviews WHERE user_id = ? AND product_id = ?').get(userId, product_id);
       if (existing) {
-        db.prepare('UPDATE reviews SET rating = ?, comment = ?, verified = ? WHERE id = ?').run(rating, comment, verified, existing.id);
+        await db.prepare('UPDATE reviews SET rating = ?, comment = ?, verified = ? WHERE id = ?').run(rating, comment, verified, existing.id);
       } else {
-        db.prepare('INSERT INTO reviews (user_id, product_id, rating, comment, verified) VALUES (?, ?, ?, ?, ?)').run(userId, product_id, rating, comment, verified);
+        await db.prepare('INSERT INTO reviews (user_id, product_id, rating, comment, verified) VALUES (?, ?, ?, ?, ?)').run(userId, product_id, rating, comment, verified);
       }
     } else {
-      db.prepare('INSERT INTO reviews (user_id, product_id, rating, comment, verified, user_name) VALUES (NULL, ?, ?, ?, ?, ?)').run(product_id, rating, comment, 0, displayName);
+      await db.prepare('INSERT INTO reviews (user_id, product_id, rating, comment, verified, user_name) VALUES (NULL, ?, ?, ?, ?, ?)').run(product_id, rating, comment, 0, displayName);
     }
 
     // Update product aggregate rating
-    const stats = db.prepare('SELECT AVG(rating) as avg_rating, COUNT(*) as cnt FROM reviews WHERE product_id = ?').get(product_id);
+    const stats = await db.prepare('SELECT AVG(rating) as avg_rating, COUNT(*) as cnt FROM reviews WHERE product_id = ?').get(product_id);
     const avgRating = stats.avg_rating ? Math.round(stats.avg_rating * 10) / 10 : 0;
-    db.prepare('UPDATE products SET rating = ?, reviews_count = ? WHERE id = ?').run(avgRating, stats.cnt, product_id);
+    await db.prepare('UPDATE products SET rating = ?, reviews_count = ? WHERE id = ?').run(avgRating, stats.cnt, product_id);
 
-    const review = db.prepare('SELECT * FROM reviews WHERE product_id = ? ORDER BY created_at DESC LIMIT 1').get(product_id);
+    const review = await db.prepare('SELECT * FROM reviews WHERE product_id = ? ORDER BY created_at DESC LIMIT 1').get(product_id);
 
     res.status(201).json({ review });
   } catch (err) {
@@ -53,9 +53,9 @@ router.post('/', optionalAuth, (req, res) => {
 });
 
 // GET all reviews (admin)
-router.get('/admin/all', auth, (req, res) => {
+router.get('/admin/all', auth, async (req, res) => {
   try {
-    const reviews = db.prepare(`
+    const reviews = await db.prepare(`
       SELECT r.*,
         CASE WHEN r.user_id IS NOT NULL THEN u.name ELSE r.user_name END as display_name,
         u.avatar as user_avatar,
@@ -72,9 +72,9 @@ router.get('/admin/all', auth, (req, res) => {
 });
 
 // GET reviews for product
-router.get('/product/:productId', (req, res) => {
+router.get('/product/:productId', async (req, res) => {
   try {
-    const reviews = db.prepare(`
+    const reviews = await db.prepare(`
       SELECT r.*,
         CASE WHEN r.user_id IS NOT NULL THEN u.name ELSE r.user_name END as display_name,
         u.avatar as user_avatar
@@ -90,20 +90,20 @@ router.get('/product/:productId', (req, res) => {
 });
 
 // DELETE review (own or admin)
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const review = db.prepare('SELECT * FROM reviews WHERE id = ?').get(req.params.id);
+    const review = await db.prepare('SELECT * FROM reviews WHERE id = ?').get(req.params.id);
     if (!review) return res.status(404).json({ error: 'Review not found' });
     const isAdmin = req.user.role === 'admin';
     const isOwner = review.user_id !== null && review.user_id === req.user.id;
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    db.prepare('DELETE FROM reviews WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM reviews WHERE id = ?').run(req.params.id);
 
-    const stats = db.prepare('SELECT AVG(rating) as avg_rating, COUNT(*) as cnt FROM reviews WHERE product_id = ?').get(review.product_id);
+    const stats = await db.prepare('SELECT AVG(rating) as avg_rating, COUNT(*) as cnt FROM reviews WHERE product_id = ?').get(review.product_id);
     const avgRating = stats.avg_rating ? Math.round(stats.avg_rating * 10) / 10 : 0;
-    db.prepare('UPDATE products SET rating = ?, reviews_count = ? WHERE id = ?').run(avgRating, stats.cnt, review.product_id);
+    await db.prepare('UPDATE products SET rating = ?, reviews_count = ? WHERE id = ?').run(avgRating, stats.cnt, review.product_id);
 
     res.json({ message: 'Review deleted' });
   } catch (err) {

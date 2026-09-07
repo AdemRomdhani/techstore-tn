@@ -7,7 +7,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/tax/calculate - Calculate tax
-router.get('/calculate', (req, res) => {
+router.get('/calculate', async (req, res) => {
   const { amount, country, state, city } = req.query;
   const amt = parseFloat(amount) || 0;
   try {
@@ -16,7 +16,7 @@ router.get('/calculate', (req, res) => {
     if (country) { sql += ' AND (country IS NULL OR country = ?)'; params.push(country); }
     if (state) { sql += ' AND (state IS NULL OR state = ?)'; params.push(state); }
     if (city) { sql += ' AND (city IS NULL OR city = ?)'; params.push(city); }
-    const rates = db.prepare(sql).all(...params);
+    const rates = await db.prepare(sql).all(...params);
     let totalTax = 0;
     rates.forEach(r => { totalTax += amt * r.rate; });
     res.json({ tax: +totalTax.toFixed(2), breakdown: rates.map(r => ({ name: r.name, rate: r.rate, amount: +(amt * r.rate).toFixed(2) })) });
@@ -26,9 +26,9 @@ router.get('/calculate', (req, res) => {
 });
 
 // GET /api/tax - Get all tax rates
-router.get('/', auth, adminOnly, (req, res) => {
+router.get('/', auth, adminOnly, async (req, res) => {
   try {
-    const rates = db.prepare('SELECT * FROM tax_rates ORDER BY created_at DESC').all();
+    const rates = await db.prepare('SELECT * FROM tax_rates ORDER BY created_at DESC').all();
     res.json({ rates });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch tax rates' });
@@ -36,14 +36,14 @@ router.get('/', auth, adminOnly, (req, res) => {
 });
 
 // POST /api/tax - Create tax rate
-router.post('/', auth, adminOnly, (req, res) => {
+router.post('/', auth, adminOnly, async (req, res) => {
   const { name, rate, country, state, city } = req.body;
   if (!name || rate === undefined) return res.status(400).json({ error: 'Name and rate are required' });
   try {
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO tax_rates (name, rate, country, state, city) VALUES (?, ?, ?, ?, ?)'
     ).run(name, rate, country || null, state || null, city || null);
-    const taxRate = db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(result.lastInsertRowid);
+    const taxRate = await db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ taxRate });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create tax rate' });
@@ -51,15 +51,15 @@ router.post('/', auth, adminOnly, (req, res) => {
 });
 
 // PUT /api/tax/:id - Update tax rate
-router.put('/:id', auth, adminOnly, (req, res) => {
+router.put('/:id', auth, adminOnly, async (req, res) => {
   const { name, rate, country, state, city, active } = req.body;
   try {
-    const existing = db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(req.params.id);
+    const existing = await db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Tax rate not found' });
-    db.prepare(
+    await db.prepare(
       'UPDATE tax_rates SET name = COALESCE(?, name), rate = COALESCE(?, rate), country = COALESCE(?, country), state = COALESCE(?, state), city = COALESCE(?, city), active = COALESCE(?, active) WHERE id = ?'
     ).run(name, rate, country, state, city, active !== undefined ? (active ? 1 : 0) : null, req.params.id);
-    const taxRate = db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(req.params.id);
+    const taxRate = await db.prepare('SELECT * FROM tax_rates WHERE id = ?').get(req.params.id);
     res.json({ taxRate });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update tax rate' });
@@ -67,9 +67,9 @@ router.put('/:id', auth, adminOnly, (req, res) => {
 });
 
 // DELETE /api/tax/:id - Delete tax rate
-router.delete('/:id', auth, adminOnly, (req, res) => {
+router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
-    db.prepare('DELETE FROM tax_rates WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM tax_rates WHERE id = ?').run(req.params.id);
     res.json({ message: 'Tax rate deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete tax rate' });

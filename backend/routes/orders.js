@@ -10,7 +10,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
 // GUEST: Create order (no auth required)
-router.post('/guest', (req, res) => {
+router.post('/guest', async (req, res) => {
   const { items, nom, prenom, adresse, numero, payment_method, coupon_code } = req.body;
 
   if (!nom || !prenom || !adresse || !numero) {
@@ -29,7 +29,7 @@ router.post('/guest', (req, res) => {
     // Fetch product info for each item
     const productIds = items.map(i => i.product_id);
     const placeholders = productIds.map(() => '?').join(',');
-    const products = db.prepare(`SELECT * FROM products WHERE id IN (${placeholders}) AND active = 1`).all(...productIds);
+    const products = await db.prepare(`SELECT * FROM products WHERE id IN (${placeholders}) AND active = 1`).all(...productIds);
     const productMap = {};
     products.forEach(p => { productMap[p.id] = p; });
 
@@ -54,7 +54,7 @@ router.post('/guest', (req, res) => {
     let discountPercent = 0;
     let couponId = null;
     if (coupon_code) {
-      const coupon = db.prepare(`SELECT * FROM coupons WHERE code = ? AND active = 1 AND (expires_at IS NULL OR expires_at > datetime('now')) AND used_count < max_uses`).get(coupon_code.toUpperCase());
+      const coupon = await db.prepare(`SELECT * FROM coupons WHERE code = ? AND active = 1 AND (expires_at IS NULL OR expires_at > NOW()) AND used_count < max_uses`).get(coupon_code.toUpperCase());
       if (coupon) {
         discountPercent = coupon.discount_percent;
         couponId = coupon.id;
@@ -65,54 +65,50 @@ router.post('/guest', (req, res) => {
 
     // Calculate tax
     let totalTax = 0;
-    const taxRates = db.prepare('SELECT * FROM tax_rates WHERE active = 1').all();
+    const taxRates = await db.prepare('SELECT * FROM tax_rates WHERE active = 1').all();
     taxRates.forEach(t => { totalTax += (subtotal - discount) * t.rate; });
     totalTax = +totalTax.toFixed(2);
 
     // Calculate shipping
     let shipping = 0;
-    const freeThreshold = parseFloat(db.prepare(`SELECT value FROM settings WHERE key = 'free_shipping_threshold'`).get()?.value || 50);
-    const standardShipping = parseFloat(db.prepare(`SELECT value FROM settings WHERE key = 'standard_shipping'`).get()?.value || 5.99);
+    const freeThreshold = parseFloat((await db.prepare(`SELECT value FROM settings WHERE key = 'free_shipping_threshold'`).get())?.value || 50);
+    const standardShipping = parseFloat((await db.prepare(`SELECT value FROM settings WHERE key = 'standard_shipping'`).get())?.value || 5.99);
     shipping = subtotal >= freeThreshold ? 0 : standardShipping;
 
     const total = subtotal - discount + totalTax + shipping;
 
-    const insertItem = db.prepare(`INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity) VALUES (?, ?, ?, ?, ?, ?)`);
-    const updateStock = db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?');
-    const insertInventoryHistory = db.prepare('INSERT INTO inventory_history (product_id, change, reason, reference_id, user_id) VALUES (?, ?, ?, ?, NULL)');
-
     let orderId;
-    const tx = db.transaction(() => {
+    const tx = db.transaction(async (client) => {
       // Increment coupon usage inside transaction (prevents race condition)
       if (couponId) {
-        db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').run(couponId);
+        await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [couponId]);
       }
 
       // Use guest user for guest orders
-      let guestUser = db.prepare("SELECT id FROM users WHERE email = 'guest@system.local'").get();
+      let guestUser = (await client.query("SELECT id FROM users WHERE email = 'guest@system.local'")).rows[0];
       if (!guestUser) {
         const bcrypt = require('bcryptjs');
         const hash = bcrypt.hashSync('guest_' + Date.now(), 10);
-        const result = db.prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)").run('Guest', 'guest@system.local', hash, 'customer');
+        const result = await client.query("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)", ['Guest', 'guest@system.local', hash, 'customer']);
         guestUser = { id: result.lastInsertRowid };
       }
 
-      const orderResult = db.prepare(`
+      const orderResult = await client.query(`
         INSERT INTO orders (user_id, total, status, payment_method, shipping_name, shipping_nom, shipping_prenom, shipping_address, shipping_city, shipping_zip, shipping_country, shipping_phone, notes)
         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(guestUser.id, total, payment_method || 'cod', shipping_name, nom, prenom, shipping_address, shipping_city, '', 'Tunisie', shipping_phone, '');
+      `, [guestUser.id, total, payment_method || 'cod', shipping_name, nom, prenom, shipping_address, shipping_city, '', 'Tunisie', shipping_phone, '']);
       orderId = orderResult.lastInsertRowid;
 
-      orderItems.forEach(i => {
-        insertItem.run(orderId, i.product_id, i.product_name, i.product_image, i.price, i.quantity);
-        updateStock.run(i.quantity, i.product_id);
-        insertInventoryHistory.run(i.product_id, -i.quantity, 'Order #' + orderId, orderId);
-      });
+      for (const i of orderItems) {
+        await client.query(`INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity) VALUES (?, ?, ?, ?, ?, ?)`, [orderId, i.product_id, i.product_name, i.product_image, i.price, i.quantity]);
+        await client.query('UPDATE products SET stock = stock - ? WHERE id = ?', [i.quantity, i.product_id]);
+        await client.query('INSERT INTO inventory_history (product_id, change, reason, reference_id, user_id) VALUES (?, ?, ?, ?, NULL)', [i.product_id, -i.quantity, 'Order #' + orderId, orderId]);
+      }
     });
-    tx();
+    await tx();
 
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    const finalItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    const finalItems = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
 
     notifyAdmins(t('newOrder'), `Nouvelle commande #${orderId} de ${shipping_name}`, 'info', `/orders/${orderId}`);
 
@@ -127,14 +123,14 @@ router.post('/guest', (req, res) => {
 });
 
 // GUEST: Get order by ID - requires order ID + phone number for verification
-router.get('/guest/:id', (req, res) => {
+router.get('/guest/:id', async (req, res) => {
   const { phone } = req.query;
   if (!phone) return res.status(400).json({ error: 'Phone number required for verification' });
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'Commande introuvable' });
     if (order.shipping_phone !== phone) return res.status(403).json({ error: 'Access denied' });
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
+    const items = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
     res.json({ order: { ...order, items } });
   } catch (err) {
     res.status(500).json({ error: 'Erreur lors de la récupération de la commande' });
@@ -142,11 +138,11 @@ router.get('/guest/:id', (req, res) => {
 });
 
 // Validate coupon
-router.post('/coupon/validate', (req, res) => {
+router.post('/coupon/validate', async (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).json({ valid: false, error: 'Code requis' });
   try {
-    const coupon = db.prepare(`SELECT * FROM coupons WHERE code = ? AND active = 1 AND (expires_at IS NULL OR expires_at > datetime('now')) AND used_count < max_uses`).get(code.toUpperCase());
+    const coupon = await db.prepare(`SELECT * FROM coupons WHERE code = ? AND active = 1 AND (expires_at IS NULL OR expires_at > NOW()) AND used_count < max_uses`).get(code.toUpperCase());
     if (!coupon) return res.json({ valid: false, error: 'Code invalide ou expiré' });
     res.json({ valid: true, coupon: { code: coupon.code, discount_percent: coupon.discount_percent, max_uses: coupon.max_uses, used_count: coupon.used_count } });
   } catch (err) {
@@ -155,9 +151,9 @@ router.post('/coupon/validate', (req, res) => {
 });
 
 // CUSTOMER: Get my orders
-router.get('/my', auth, (req, res) => {
+router.get('/my', auth, async (req, res) => {
   try {
-    const orders = db.prepare(`
+    const orders = await db.prepare(`
       SELECT o.*, COUNT(oi.id) as item_count
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -172,11 +168,11 @@ router.get('/my', auth, (req, res) => {
 });
 
 // CUSTOMER: Get single order detail
-router.get('/my/:id', auth, (req, res) => {
+router.get('/my/:id', auth, async (req, res) => {
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
+    const items = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
     res.json({ order: { ...order, items } });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch order' });
@@ -184,26 +180,26 @@ router.get('/my/:id', auth, (req, res) => {
 });
 
 // CUSTOMER: Cancel my order (only if pending)
-router.put('/my/:id/cancel', auth, (req, res) => {
+router.put('/my/:id/cancel', auth, async (req, res) => {
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.status !== 'pending') {
       return res.status(400).json({ error: 'Only pending orders can be cancelled' });
     }
 
-    const tx = db.transaction(() => {
-      db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(req.params.id);
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
-      items.forEach(item => {
+    const tx = db.transaction(async (client) => {
+      await client.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [req.params.id]);
+      const items = (await client.query('SELECT * FROM order_items WHERE order_id = ?', [req.params.id])).rows;
+      for (const item of items) {
         if (item.product_id) {
-          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+          await client.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
         }
-      });
+      }
     });
-    tx();
+    await tx();
 
-    const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+    const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     res.json({ order: updated, message: 'Order cancelled' });
   } catch (err) {
     console.error(err);
@@ -212,14 +208,14 @@ router.put('/my/:id/cancel', auth, (req, res) => {
 });
 
 // ADMIN: get all orders
-router.get('/admin/all', auth, adminOnly, (req, res) => {
+router.get('/admin/all', auth, adminOnly, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `SELECT o.*, COUNT(oi.id) as item_count FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id`;
     const params = [];
     if (status) { sql += ' WHERE o.status = ?'; params.push(status); }
     sql += ' GROUP BY o.id ORDER BY o.created_at DESC';
-    const orders = db.prepare(sql).all(...params);
+    const orders = await db.prepare(sql).all(...params);
     res.json({ orders });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch orders' });
@@ -227,7 +223,7 @@ router.get('/admin/all', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: export orders as CSV (must be before /:id)
-router.get('/admin/export', auth, adminOnly, (req, res) => {
+router.get('/admin/export', auth, adminOnly, async (req, res) => {
   try {
     const { status, start, end } = req.query;
     let sql = `SELECT o.id, o.total, o.status, o.payment_method, o.shipping_name, o.shipping_address, o.shipping_city, o.shipping_country, o.created_at, COUNT(oi.id) as item_count FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id WHERE 1=1`;
@@ -236,7 +232,7 @@ router.get('/admin/export', auth, adminOnly, (req, res) => {
     if (start) { sql += ' AND o.created_at >= ?'; params.push(start); }
     if (end) { sql += ' AND o.created_at <= ?'; params.push(end); }
     sql += ' GROUP BY o.id ORDER BY o.created_at DESC';
-    const orders = db.prepare(sql).all(...params);
+    const orders = await db.prepare(sql).all(...params);
     const header = 'ID;Total;Status;Payment;Name;Address;City;Country;Items;Created At\n';
     const rows = orders.map(o => [
       o.id,
@@ -260,12 +256,12 @@ router.get('/admin/export', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: get single order detail
-router.get('/admin/:id', auth, adminOnly, (req, res) => {
+router.get('/admin/:id', auth, adminOnly, async (req, res) => {
   try {
-    const order = db.prepare(`SELECT o.* FROM orders o WHERE o.id = ?`).get(req.params.id);
+    const order = await db.prepare(`SELECT o.* FROM orders o WHERE o.id = ?`).get(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
-    const notes = db.prepare('SELECT * FROM order_notes WHERE order_id = ? ORDER BY created_at DESC').all(req.params.id);
+    const items = await db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
+    const notes = await db.prepare('SELECT * FROM order_notes WHERE order_id = ? ORDER BY created_at DESC').all(req.params.id);
     res.json({ order: { ...order, items, notes, nom: order.shipping_nom || '', prenom: order.shipping_prenom || '' } });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch order' });
@@ -273,14 +269,14 @@ router.get('/admin/:id', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: update order status
-router.put('/admin/:id/status', auth, adminOnly, (req, res) => {
+router.put('/admin/:id/status', auth, adminOnly, async (req, res) => {
   const { status, note } = req.body;
   const valid = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
-    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id);
-    if (note) { db.prepare('INSERT INTO order_notes (order_id, note) VALUES (?, ?)').run(req.params.id, note); }
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+    await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id);
+    if (note) { await db.prepare('INSERT INTO order_notes (order_id, note) VALUES (?, ?)').run(req.params.id, note); }
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     res.json({ order });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update order' });
@@ -288,25 +284,25 @@ router.put('/admin/:id/status', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: delete order
-router.delete('/admin/:id', auth, adminOnly, (req, res) => {
+router.delete('/admin/:id', auth, adminOnly, async (req, res) => {
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const tx = db.transaction(() => {
+    const tx = db.transaction(async (client) => {
       // Restore stock (only for items with valid product_id)
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
-      items.forEach(item => {
+      const items = (await client.query('SELECT * FROM order_items WHERE order_id = ?', [req.params.id])).rows;
+      for (const item of items) {
         if (item.product_id) {
-          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+          await client.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
         }
-      });
+      }
       // Delete related data
-      db.prepare('DELETE FROM order_notes WHERE order_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM orders WHERE id = ?').run(req.params.id);
+      await client.query('DELETE FROM order_notes WHERE order_id = ?', [req.params.id]);
+      await client.query('DELETE FROM order_items WHERE order_id = ?', [req.params.id]);
+      await client.query('DELETE FROM orders WHERE id = ?', [req.params.id]);
     });
-    tx();
+    await tx();
 
     res.json({ message: 'Order deleted' });
   } catch (err) {

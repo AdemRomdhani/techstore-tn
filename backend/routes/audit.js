@@ -7,7 +7,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/audit - Get audit log with pagination
-router.get('/', auth, adminOnly, (req, res) => {
+router.get('/', auth, adminOnly, async (req, res) => {
   try {
     const { page = 1, limit = 50, action, entity, user_id } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -26,8 +26,8 @@ router.get('/', auth, adminOnly, (req, res) => {
     sql += ' ORDER BY al.created_at DESC LIMIT ? OFFSET ?';
     params.push(limitNum, offset);
 
-    const logs = db.prepare(sql).all(...params);
-    const { total } = db.prepare(countSql).get(...cParams);
+    const logs = await db.prepare(sql).all(...params);
+    const { total } = await db.prepare(countSql).get(...cParams);
 
     res.json({ logs, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } });
   } catch (err) {

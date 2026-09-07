@@ -8,9 +8,9 @@ const { auth } = require('../middleware/auth');
 const router = express.Router();
 
 // GET cart
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    const items = db.prepare(`
+    const items = await db.prepare(`
       SELECT
         c.id as cart_id, c.quantity, c.created_at,
         p.id, p.name, p.slug, p.price, p.old_price, p.image, p.stock, p.brand
@@ -41,21 +41,21 @@ router.get('/', auth, (req, res) => {
 });
 
 // ADD to cart
-router.post('/', auth, (req, res) => {
+router.post('/', auth, async (req, res) => {
   const { product_id, quantity = 1 } = req.body;
   if (!product_id) return res.status(400).json({ error: 'product_id required' });
   try {
-    const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(product_id);
+    const product = await db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(product_id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
     if (product.stock < quantity) return res.status(400).json({ error: 'Insufficient stock' });
 
-    const existing = db.prepare('SELECT * FROM cart WHERE user_id = ? AND product_id = ?').get(req.user.id, product_id);
+    const existing = await db.prepare('SELECT * FROM cart WHERE user_id = ? AND product_id = ?').get(req.user.id, product_id);
     if (existing) {
       const newQty = existing.quantity + quantity;
       if (newQty > product.stock) return res.status(400).json({ error: 'Cannot exceed stock' });
-      db.prepare('UPDATE cart SET quantity = ? WHERE id = ?').run(newQty, existing.id);
+      await db.prepare('UPDATE cart SET quantity = ? WHERE id = ?').run(newQty, existing.id);
     } else {
-      db.prepare('INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)').run(req.user.id, product_id, quantity);
+      await db.prepare('INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)').run(req.user.id, product_id, quantity);
     }
     res.json({ message: 'Added to cart' });
   } catch (err) {
@@ -65,11 +65,11 @@ router.post('/', auth, (req, res) => {
 });
 
 // UPDATE quantity
-router.put('/:id', auth, (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   const { quantity } = req.body;
   if (!quantity || quantity < 1) return res.status(400).json({ error: 'Invalid quantity' });
   try {
-    const item = db.prepare(`
+    const item = await db.prepare(`
       SELECT c.*, p.stock FROM cart c
       JOIN products p ON c.product_id = p.id
       WHERE c.id = ? AND c.user_id = ?
@@ -77,7 +77,7 @@ router.put('/:id', auth, (req, res) => {
     if (!item) return res.status(404).json({ error: 'Cart item not found' });
     if (quantity > item.stock) return res.status(400).json({ error: 'Exceeds stock' });
 
-    db.prepare('UPDATE cart SET quantity = ? WHERE id = ?').run(quantity, req.params.id);
+    await db.prepare('UPDATE cart SET quantity = ? WHERE id = ?').run(quantity, req.params.id);
     res.json({ message: 'Cart updated' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update cart' });
@@ -85,9 +85,9 @@ router.put('/:id', auth, (req, res) => {
 });
 
 // REMOVE item
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    db.prepare('DELETE FROM cart WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    await db.prepare('DELETE FROM cart WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
     res.json({ message: 'Item removed' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove item' });
@@ -95,9 +95,9 @@ router.delete('/:id', auth, (req, res) => {
 });
 
 // CLEAR cart
-router.delete('/', auth, (req, res) => {
+router.delete('/', auth, async (req, res) => {
   try {
-    db.prepare('DELETE FROM cart WHERE user_id = ?').run(req.user.id);
+    await db.prepare('DELETE FROM cart WHERE user_id = ?').run(req.user.id);
     res.json({ message: 'Cart cleared' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to clear cart' });

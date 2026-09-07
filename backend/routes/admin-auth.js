@@ -52,7 +52,7 @@ router.post(
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').notEmpty().withMessage('Password required'),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -66,7 +66,7 @@ router.post(
     }
 
     try {
-      const user = db.prepare('SELECT * FROM users WHERE email = ? AND role = ?').get(email, 'admin');
+      const user = await db.prepare('SELECT * FROM users WHERE email = ? AND role = ?').get(email, 'admin');
       if (!user) {
         recordAttempt(email, false);
         return res.status(401).json({ error: 'Invalid credentials' });
@@ -85,7 +85,7 @@ router.post(
       recordAttempt(email, true);
 
       // Clean up old refresh tokens for this user
-      db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
+      await db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
 
       const userSafe = {
         id: user.id,
@@ -95,11 +95,11 @@ router.post(
       };
 
       const accessToken = generateAccessToken(userSafe);
-      const refreshToken = generateRefreshToken(userSafe);
+      const refreshToken = await generateRefreshToken(userSafe);
 
       // Log the login
       try {
-        db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)')
+        await db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)')
           .run(user.id, 'login', 'user', user.id, JSON.stringify({ email: user.email }), req.ip);
       } catch (e) { /* ignore audit errors */ }
 
@@ -112,27 +112,27 @@ router.post(
 );
 
 // POST /api/admin-auth/refresh
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       return res.status(401).json({ error: 'Refresh token required' });
     }
 
-    const decoded = verifyRefreshToken(refreshToken);
+    const decoded = await verifyRefreshToken(refreshToken);
     if (!decoded) {
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
     }
 
-    const user = db.prepare('SELECT id, name, email, role, active FROM users WHERE id = ? AND role = ?').get(decoded.id, 'admin');
+    const user = await db.prepare('SELECT id, name, email, role, active FROM users WHERE id = ? AND role = ?').get(decoded.id, 'admin');
     if (!user || !user.active) {
       return res.status(401).json({ error: 'User not found or disabled' });
     }
 
     // Rotate refresh token
-    removeRefreshToken(decoded.tokenId);
+    await removeRefreshToken(decoded.tokenId);
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
+    const newRefreshToken = await generateRefreshToken(user);
 
     res.json({ token: newAccessToken, refreshToken: newRefreshToken });
   } catch (err) {
@@ -142,9 +142,9 @@ router.post('/refresh', (req, res) => {
 });
 
 // GET /api/admin-auth/me
-router.get('/me', auth, (req, res) => {
+router.get('/me', auth, async (req, res) => {
   try {
-    const user = db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ? AND role = ?').get(req.user.id, 'admin');
+    const user = await db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ? AND role = ?').get(req.user.id, 'admin');
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user });
   } catch (err) {
@@ -153,10 +153,10 @@ router.get('/me', auth, (req, res) => {
 });
 
 // PUT /api/admin-auth/me
-router.put('/me', auth, (req, res) => {
+router.put('/me', auth, async (req, res) => {
   const { name, phone, address, city, zip, country, avatar } = req.body;
   try {
-    db.prepare(`
+    await db.prepare(`
       UPDATE users SET
         name = COALESCE(?, name),
         phone = COALESCE(?, phone),
@@ -168,7 +168,7 @@ router.put('/me', auth, (req, res) => {
       WHERE id = ? AND role = 'admin'
     `).run(name, phone, address, city, zip, country, avatar || null, req.user.id);
 
-    const user = db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT id, name, email, role, phone, address, city, zip, country, avatar, created_at FROM users WHERE id = ?').get(req.user.id);
     res.json({ user });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update profile' });
@@ -183,7 +183,7 @@ router.put(
     body('currentPassword').notEmpty().withMessage('Current password required'),
     body('newPassword').isLength({ min: 8 }).withMessage('New password must be 8+ chars'),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -192,7 +192,7 @@ router.put(
     const { currentPassword, newPassword } = req.body;
 
     try {
-      const user = db.prepare('SELECT password FROM users WHERE id = ? AND role = ?').get(req.user.id, 'admin');
+      const user = await db.prepare('SELECT password FROM users WHERE id = ? AND role = ?').get(req.user.id, 'admin');
       if (!bcrypt.compareSync(currentPassword, user.password)) {
         return res.status(400).json({ error: 'Current password is incorrect' });
       }
@@ -203,10 +203,10 @@ router.put(
       }
 
       const hash = bcrypt.hashSync(newPassword, 12);
-      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
+      await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
 
       // Invalidate all refresh tokens (force re-login on all devices)
-      db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
+      await db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
 
       res.json({ message: 'Password updated. Please login again.' });
     } catch (err) {
@@ -216,10 +216,10 @@ router.put(
 );
 
 // POST /api/admin-auth/logout
-router.post('/logout', auth, (req, res) => {
+router.post('/logout', auth, async (req, res) => {
   try {
     // Remove all refresh tokens for this user
-    db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
+    await db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.user.id);
     res.json({ message: 'Logged out' });
   } catch (err) {
     console.error('Logout error:', err);

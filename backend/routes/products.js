@@ -41,7 +41,7 @@ const slugify = (str) =>
  *         description: Paginated list of products
  */
 // GET /api/products - list with filters
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       search,
@@ -59,7 +59,7 @@ router.get('/', (req, res) => {
     let useFts = false;
     if (search) {
       try {
-        db.prepare("SELECT 1 FROM products_fts WHERE products_fts MATCH ? LIMIT 1").get(search + '*');
+        await db.prepare("SELECT 1 FROM products WHERE search_vector @@ plainto_tsquery('english', $1) LIMIT 1").get(search);
         useFts = true;
       } catch (e) {
         useFts = false;
@@ -72,11 +72,10 @@ router.get('/', (req, res) => {
 
     if (useFts) {
       sql = `SELECT p.*, c.name as category_name, c.slug as category_slug,
-             rank FROM products p
+             ts_rank(p.search_vector, plainto_tsquery('english', $1)) as rank FROM products p
              LEFT JOIN categories c ON p.category_id = c.id
-             JOIN products_fts fts ON fts.rowid = p.id
-             WHERE products_fts MATCH ?`;
-      params.push(search + '*');
+             WHERE p.search_vector @@ plainto_tsquery('english', $1)`;
+      params.push(search);
       if (!isAdmin) { sql += ' AND p.active = 1'; }
     } else {
       sql = `SELECT p.*, c.name as category_name, c.slug as category_slug
@@ -141,16 +140,15 @@ router.get('/', (req, res) => {
     sql += ' LIMIT ? OFFSET ?';
     params.push(limitNum, offset);
 
-    const products = db.prepare(sql).all(...params);
+    const products = await db.prepare(sql).all(...params);
 
     // Count
     let countSql;
     const cParams = [];
     if (useFts) {
       countSql = `SELECT COUNT(*) as total FROM products p
-                  JOIN products_fts fts ON fts.rowid = p.id
-                  WHERE products_fts MATCH ?`;
-      cParams.push(search + '*');
+                  WHERE p.search_vector @@ plainto_tsquery('english', $1)`;
+      cParams.push(search);
       if (!isAdmin) { countSql += ' AND p.active = 1'; }
     } else {
       countSql = isAdmin
@@ -170,15 +168,15 @@ router.get('/', (req, res) => {
     else if (stock_status === 'low-stock') { countSql += ' AND p.stock >= 1 AND p.stock <= 10'; }
     else if (stock_status === 'out-of-stock') { countSql += ' AND p.stock = 0'; }
 
-    const { total } = db.prepare(countSql).get(...cParams);
+    const { total } = await db.prepare(countSql).get(...cParams);
 
     // Inject user-specific data using Set for O(1) lookups
     let userWishlist = new Set();
     let cartMap = {};
     if (req.user) {
-      const wishlistRows = db.prepare('SELECT product_id FROM wishlist WHERE user_id = ?').all(req.user.id);
+      const wishlistRows = await db.prepare('SELECT product_id FROM wishlist WHERE user_id = ?').all(req.user.id);
       userWishlist = new Set(wishlistRows.map(r => r.product_id));
-      const userCart = db.prepare('SELECT product_id, quantity FROM cart WHERE user_id = ?').all(req.user.id);
+      const userCart = await db.prepare('SELECT product_id, quantity FROM cart WHERE user_id = ?').all(req.user.id);
       userCart.forEach(c => { cartMap[c.product_id] = c.quantity; });
     }
 
@@ -210,9 +208,9 @@ router.get('/', (req, res) => {
  *         description: List of featured products
  */
 // GET /api/products/featured
-router.get('/featured', cacheMiddleware('products:featured', 120000), (req, res) => {
+router.get('/featured', cacheMiddleware('products:featured', 120000), async (req, res) => {
   try {
-    const products = db.prepare(`
+    const products = await db.prepare(`
       SELECT p.*, c.name as category_name, c.slug as category_slug
       FROM products p LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.featured = 1 AND p.active = 1
@@ -231,10 +229,10 @@ router.get('/featured', cacheMiddleware('products:featured', 120000), (req, res)
 });
 
 // GET /api/products/:id - get by id OR slug
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const isNumeric = /^\d+$/.test(req.params.id);
-    const product = db.prepare(`
+    const product = await db.prepare(`
       SELECT p.*, c.name as category_name, c.slug as category_slug
       FROM products p LEFT JOIN categories c ON p.category_id = c.id
       WHERE ${isNumeric ? 'p.id = ?' : 'p.slug = ?'}
@@ -243,7 +241,7 @@ router.get('/:id', (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
     // Reviews (include anonymous reviews)
-    const reviews = db.prepare(`
+    const reviews = await db.prepare(`
       SELECT r.*,
         CASE WHEN r.user_id IS NOT NULL THEN u.name ELSE r.user_name END as display_name,
         u.avatar as user_avatar
@@ -254,12 +252,12 @@ router.get('/:id', (req, res) => {
     `).all(product.id);
 
     // Real review count from actual reviews table
-    const reviewStats = db.prepare('SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM reviews WHERE product_id = ?').get(product.id);
+    const reviewStats = await db.prepare('SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM reviews WHERE product_id = ?').get(product.id);
     product.reviews_count = reviewStats.cnt || 0;
     product.rating = reviewStats.avg_rating ? Math.round(reviewStats.avg_rating * 10) / 10 : 0;
 
     // Related products
-    const related = db.prepare(`
+    const related = await db.prepare(`
       SELECT p.*, c.name as category_name, c.slug as category_slug
       FROM products p LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.category_id = ? AND p.id != ? AND p.active = 1
@@ -275,8 +273,8 @@ router.get('/:id', (req, res) => {
     product.reviews = reviews;
 
     if (req.user) {
-      product.in_wishlist = !!db.prepare('SELECT 1 FROM wishlist WHERE user_id = ? AND product_id = ?').get(req.user.id, product.id);
-      const cart = db.prepare('SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?').get(req.user.id, product.id);
+      product.in_wishlist = !!await db.prepare('SELECT 1 FROM wishlist WHERE user_id = ? AND product_id = ?').get(req.user.id, product.id);
+      const cart = await db.prepare('SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?').get(req.user.id, product.id);
       product.in_cart_quantity = cart ? cart.quantity : 0;
     }
 
@@ -288,7 +286,7 @@ router.get('/:id', (req, res) => {
 });
 
 // ADMIN: create product
-router.post('/', auth, adminOnly, (req, res) => {
+router.post('/', auth, adminOnly, async (req, res) => {
   const {
     name, description, price, old_price, stock, image, images,
     category_id, brand, featured,
@@ -298,7 +296,7 @@ router.post('/', auth, adminOnly, (req, res) => {
 
   const slug = slugify(name) + '-' + Date.now();
   try {
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO products (name, slug, description, price, old_price, stock, image, images, category_id, brand, featured)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -306,8 +304,8 @@ router.post('/', auth, adminOnly, (req, res) => {
       stock || 0, image || '', images ? JSON.stringify(images) : null,
       category_id || null, brand || null, featured ? 1 : 0
     );
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
-    db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
+    const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
+    await db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
       req.user.id, 'create', 'product', product.id, JSON.stringify({ name, price, stock }), req.ip
     );
     res.status(201).json({ product });
@@ -319,16 +317,16 @@ router.post('/', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: update product
-router.put('/:id', auth, adminOnly, (req, res) => {
+router.put('/:id', auth, adminOnly, async (req, res) => {
   const {
     name, description, price, old_price, stock, image, images,
     category_id, brand, featured, active,
   } = req.body;
   try {
-    const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Product not found' });
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE products SET
         name = COALESCE(?, name),
         description = COALESCE(?, description),
@@ -351,12 +349,12 @@ router.put('/:id', auth, adminOnly, (req, res) => {
       req.params.id
     );
     if (stock !== undefined && stock !== existing.stock) {
-      db.prepare('INSERT INTO inventory_history (product_id, change, reason, user_id) VALUES (?, ?, ?, ?)').run(
+      await db.prepare('INSERT INTO inventory_history (product_id, change, reason, user_id) VALUES (?, ?, ?, ?)').run(
         existing.id, stock - existing.stock, 'Admin stock update', 1
       );
     }
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-    db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
+    const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    await db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
       req.user.id, 'update', 'product', product.id, JSON.stringify({ name: product.name, price: product.price, stock: product.stock }), req.ip
     );
     res.json({ product });
@@ -367,15 +365,15 @@ router.put('/:id', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: delete product
-router.delete('/:id', auth, adminOnly, (req, res) => {
+router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     if (product) {
-      db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
+      await db.prepare('INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)').run(
         req.user.id, 'delete', 'product', product.id, JSON.stringify({ name: product.name, price: product.price }), req.ip
       );
     }
-    db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
     res.json({ message: 'Product deleted' });
     invalidate('products:');
   } catch (err) {
@@ -384,12 +382,12 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: bulk delete products
-router.post('/admin/bulk-delete', auth, adminOnly, (req, res) => {
+router.post('/admin/bulk-delete', auth, adminOnly, async (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
   try {
     const placeholders = ids.map(() => '?').join(',');
-    db.prepare(`DELETE FROM products WHERE id IN (${placeholders})`).run(...ids);
+    await db.prepare(`DELETE FROM products WHERE id IN (${placeholders})`).run(...ids);
     res.json({ message: `${ids.length} products deleted` });
   } catch (err) {
     res.status(500).json({ error: 'Failed to bulk delete products' });
@@ -397,7 +395,7 @@ router.post('/admin/bulk-delete', auth, adminOnly, (req, res) => {
 });
 
 // ADMIN: bulk update products
-router.post('/admin/bulk-update', auth, adminOnly, (req, res) => {
+router.post('/admin/bulk-update', auth, adminOnly, async (req, res) => {
   const { ids, data } = req.body;
   if (!Array.isArray(ids) || ids.length === 0 || !data) return res.status(400).json({ error: 'ids and data required' });
   try {
@@ -407,7 +405,7 @@ router.post('/admin/bulk-update', auth, adminOnly, (req, res) => {
     if (data.active !== undefined) { setClauses.push('active = ?'); params.push(data.active ? 1 : 0); }
     if (setClauses.length === 0) return res.status(400).json({ error: 'No fields to update' });
     const placeholders = ids.map(() => '?').join(',');
-    db.prepare(`UPDATE products SET ${setClauses.join(', ')} WHERE id IN (${placeholders})`).run(...params, ...ids);
+    await db.prepare(`UPDATE products SET ${setClauses.join(', ')} WHERE id IN (${placeholders})`).run(...params, ...ids);
     res.json({ message: `${ids.length} products updated` });
   } catch (err) {
     res.status(500).json({ error: 'Failed to bulk update products' });

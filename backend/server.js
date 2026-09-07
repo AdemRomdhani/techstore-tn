@@ -95,21 +95,26 @@ app.get('/api/health', (req, res) => {
 // AUTO-SEED: If DB is empty, seed it
 // =============================================================
 const db = require('./db/database');
+const { initSchema } = require('./db/database');
 const seed = require('./db/seed');
-try {
-  const adminCount = db.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").get();
-  if (adminCount.cnt === 0) {
-    console.log('   🌱 No admin user found, seeding...');
-    seed();
+
+(async () => {
+  try {
+    await initSchema();
+    const adminResult = await db.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").get();
+    if (adminResult.cnt === 0) {
+      console.log('   🌱 No admin user found, seeding...');
+      await seed();
+    }
+  } catch (err) {
+    console.error('   ⚠️ Auto-seed failed:', err.message);
   }
-} catch (err) {
-  console.error('   ⚠️ Auto-seed failed:', err.message);
-}
+})();
 
 // Manual seed endpoint (before 404 handler)
-app.post('/api/seed', (req, res) => {
+app.post('/api/seed', async (req, res) => {
   try {
-    seed();
+    await seed();
     res.json({ message: 'Database seeded successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

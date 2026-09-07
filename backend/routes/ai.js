@@ -31,7 +31,7 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
       return res.status(400).json({ error: 'No images uploaded' });
     }
 
-    const categories = db.prepare('SELECT id, name, slug FROM categories').all();
+    const categories = await db.prepare('SELECT id, name, slug FROM categories').all();
 
     const allProducts = [];
     const errors = [];

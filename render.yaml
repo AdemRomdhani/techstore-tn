@@ -19,5 +19,7 @@ services:
         value: 7d
       - key: CORS_ORIGINS
         value: https://tech-store-frontend-1c73.onrender.com,https://tech-store-admin.onrender.com
+      - key: DATABASE_URL
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
