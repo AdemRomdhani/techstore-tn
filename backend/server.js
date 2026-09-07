@@ -91,6 +91,32 @@ app.get('/api/health', (req, res) => {
 });
 
 // =============================================================
+// AUTO-SEED: If DB is empty, seed it
+// =============================================================
+const db = require('./db/database');
+try {
+  const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
+  if (userCount.cnt === 0) {
+    console.log('   🌱 Empty database detected, seeding...');
+    require('./db/seed');
+  }
+} catch (err) {
+  console.error('   ⚠️ Auto-seed failed:', err.message);
+}
+
+// Manual seed endpoint (before 404 handler)
+app.post('/api/seed', (req, res) => {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
+    if (count.cnt > 0) return res.json({ message: 'Database already has data', count: count.cnt });
+    require('./db/seed');
+    res.json({ message: 'Database seeded successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =============================================================
 // API DOCUMENTATION
 // =============================================================
 const { setupSwagger } = require('./swagger');
@@ -143,7 +169,6 @@ app.use((req, res) => {
 // =============================================================
 // START
 // =============================================================
-// Warn if AI is not configured (helps debug GEMINI_API_KEY issues)
 const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
 const geminiModel = (process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
 if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
@@ -153,28 +178,6 @@ if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
 } else {
   console.log(`   AI: Gemini configured ✓ (model: ${geminiModel})`);
 }
-
-// =============================================================
-// AUTO-SEED: If DB is empty, seed it
-// =============================================================
-const db = require('./db/database');
-const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
-if (userCount.cnt === 0) {
-  console.log('   🌱 Empty database detected, seeding...');
-  require('./db/seed');
-}
-
-// Manual seed endpoint
-app.post('/api/seed', (req, res) => {
-  try {
-    const count = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
-    if (count.cnt > 0) return res.json({ message: 'Database already has data' });
-    require('./db/seed');
-    res.json({ message: 'Database seeded successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Tech Store API running on http://localhost:${PORT}`);
