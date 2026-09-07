@@ -266,7 +266,7 @@ import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
               @if (showLightbox) {
                 <div class="lightbox-overlay" (click)="closeLightbox()">
                   <button class="lightbox-close" (click)="closeLightbox()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-                  <img [src]="lightboxImage" [alt]="product.name" (click)="$event.stopPropagation()">
+                  <img [src]="lightboxImage | imageUrl" [alt]="product.name" (click)="$event.stopPropagation()">
                 </div>
               }
               @if (getAllImages().length > 1) {
