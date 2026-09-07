@@ -1,10 +1,12 @@
 services:
-  # ── Backend API ──────────────────────────────────────────────
+  # ── Backend API (Node.js - Free) ───────────────────────────
   - type: web
     name: tech-store-api
-    runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -24,32 +26,32 @@ services:
       - key: GEMINI_API_KEY
         sync: false
     disk:
-      name: tech-store-persistent
+      name: tech-store-data
       mountPath: /var/data
       sizeGB: 1
 
-  # ── Customer Frontend ───────────────────────────────────────
-  - type: web
+  # ── Customer Frontend (Static Site - Free) ─────────────────
+  - type: static_site
     name: tech-store-frontend
-    runtime: docker
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
-    envVars:
-      - key: BACKEND_HOST
-        fromService:
-          name: tech-store-api
-          type: web
-          property: host
+    plan: free
+    rootDir: frontend
+    buildCommand: >-
+      sed -i "s|__BACKEND_URL__|https://tech-store-api.onrender.com|g"
+      src/environments/environment.prod.ts &&
+      npm install &&
+      npm run build -- --configuration production
+    staticPublishPath: dist/tech-store/browser
 
-  # ── Admin Frontend ──────────────────────────────────────────
-  - type: web
+  # ── Admin Frontend (Static Site - Free) ────────────────────
+  - type: static_site
     name: tech-store-admin
-    runtime: docker
-    dockerfilePath: ./admin-frontend/Dockerfile
-    dockerContext: ./admin-frontend
-    envVars:
-      - key: BACKEND_HOST
-        fromService:
-          name: tech-store-api
-          type: web
-          property: host
+    plan: free
+    rootDir: admin-frontend
+    buildCommand: >-
+      sed -i "s|__BACKEND_URL__|https://tech-store-api.onrender.com|g"
+      src/environments/environment.prod.ts &&
+      sed -i "s|__STORE_URL__|https://tech-store-frontend.onrender.com|g"
+      src/environments/environment.prod.ts &&
+      npm install &&
+      npm run build -- --configuration production
+    staticPublishPath: dist/tech-store-admin/browser

@@ -7,6 +7,7 @@ import { NotificationService } from '../../core/services/notification.service';
 import { KeyboardService } from '../../core/services/keyboard.service';
 import { BreadcrumbComponent } from '../../shared/components/breadcrumb/breadcrumb.component';
 import { AdminAuthService } from '../../core/services/admin-auth.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-admin-layout',
@@ -109,7 +110,7 @@ import { AdminAuthService } from '../../core/services/admin-auth.service';
             </li>
 
             <li class="mt-3 border-top pt-3">
-              <a href="http://localhost:4200" target="_blank" class="nav-link text-white-50" [title]="sidebarCollapsed() ? i18n.t('viewStore') : ''">
+              <a [href]="storeUrl" target="_blank" class="nav-link text-white-50" [title]="sidebarCollapsed() ? i18n.t('viewStore') : ''">
                 <i class="bi bi-box-arrow-up-right"></i>
                 @if (!sidebarCollapsed()) { <span>{{ i18n.t('viewStore') }}</span> }
               </a>
@@ -382,6 +383,7 @@ export class AdminLayoutComponent implements OnInit {
   darkMode = inject(DarkModeService);
   notifService = inject(NotificationService);
   private keyboardService = inject(KeyboardService);
+  storeUrl = environment.storeUrl;
 
   sidebarCollapsed = signal(false);
   mobileMenuOpen = signal(false);
