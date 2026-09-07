@@ -154,6 +154,16 @@ if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
   console.log(`   AI: Gemini configured ✓ (model: ${geminiModel})`);
 }
 
+// =============================================================
+// AUTO-SEED: If DB is empty, seed it
+// =============================================================
+const db = require('./db/database');
+const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
+if (userCount.cnt === 0) {
+  console.log('   🌱 Empty database detected, seeding...');
+  require('./db/seed');
+}
+
 app.listen(PORT, () => {
   console.log(`\n🚀 Tech Store API running on http://localhost:${PORT}`);
   console.log(`   Health:  http://localhost:${PORT}/api/health`);
