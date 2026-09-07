@@ -9,11 +9,12 @@ import { ToastService } from '../../core/services/toast.service';
 import { Product, Review } from '../../core/models';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 @Component({
   selector: 'app-product-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ProductCardComponent, LoadingSpinnerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ProductCardComponent, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.Default,
   styles: [`
     /* ── Quantity stepper ── */
@@ -253,7 +254,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
                   </button>
                   <span class="gallery-counter">{{ currentImageIndex + 1 }} / {{ getAllImages().length }}</span>
                 }
-                <img [src]="selectedImage || product.image || defaultPlaceholder" [alt]="product.name"
+                <img [src]="(selectedImage || product.image || defaultPlaceholder) | imageUrl" [alt]="product.name"
                      class="img-fluid rounded gallery-slide gallery-main-img"
                      [class.is-portrait]="isPortrait"
                      [ngClass]="slideClass"
@@ -271,7 +272,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
               @if (getAllImages().length > 1) {
                 <div class="d-flex gap-2 mt-3 overflow-auto pb-1">
                   @for (img of getAllImages(); track $index) {
-                    <img [src]="img" alt="thumb" class="product-gallery-thumb" [class.active]="selectedImage === img" (click)="selectImage($index)" (error)="onImgError($event)">
+                    <img [src]="img | imageUrl" alt="thumb" class="product-gallery-thumb" [class.active]="selectedImage === img" (click)="selectImage($index)" (error)="onImgError($event)">
                   }
                 </div>
               }

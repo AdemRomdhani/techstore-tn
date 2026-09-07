@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { CartService } from '../../core/services/cart.service';
 import { ApiService } from '../../core/services/api.service';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="container py-3 py-md-4 px-2 px-sm-3 fade-in">
@@ -27,7 +28,7 @@ import { ApiService } from '../../core/services/api.service';
               @for (item of cart.items(); track item.product_id) {
                 <div class="d-flex gap-2 gap-md-3 py-3 cart-item-flex" style="border-bottom: 1px solid #334155;">
                   <a [routerLink]="['/products', item.slug]">
-                    <img [src]="item.image || 'https://placehold.co/100'" [alt]="item.name" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
+                    <img [src]="(item.image || 'https://placehold.co/100') | imageUrl" [alt]="item.name" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
                   </a>
                   <div class="flex-grow-1" style="min-width: 0;">
                     <a [routerLink]="['/products', item.slug]" class="text-decoration-none">

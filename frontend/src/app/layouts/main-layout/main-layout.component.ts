@@ -4,11 +4,12 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router, ActivatedRoute } fr
 import { CartService } from '../../core/services/cart.service';
 import { ApiService } from '../../core/services/api.service';
 import { FormsModule } from '@angular/forms';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, FormsModule, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- Top announcement bar -->
@@ -81,7 +82,7 @@ import { FormsModule } from '@angular/forms';
             @for (item of cart.items(); track item.product_id) {
               <div class="cart-panel-item">
                 <a [routerLink]="['/products', item.slug]" (click)="cartPanelOpen = false; cdr.markForCheck()">
-                  <img [src]="item.image || 'https://placehold.co/80'" [alt]="item.name" class="cart-panel-thumb">
+                  <img [src]="(item.image || 'https://placehold.co/80') | imageUrl" [alt]="item.name" class="cart-panel-thumb">
                 </a>
                 <div class="flex-grow-1 min-width-0">
                   <a [routerLink]="['/products', item.slug]" (click)="cartPanelOpen = false; cdr.markForCheck()" class="text-decoration-none">

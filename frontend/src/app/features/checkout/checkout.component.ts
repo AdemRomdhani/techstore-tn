@@ -5,11 +5,12 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { CartService } from '../../core/services/cart.service';
 import { ToastService } from '../../core/services/toast.service';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 @Component({
   selector: 'app-checkout',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="container py-3 py-md-4 px-2 px-sm-3 fade-in">
@@ -53,7 +54,7 @@ import { ToastService } from '../../core/services/toast.service';
                 <h5 class="fw-bold mb-3" style="color: #e2e8f0;">Order Summary</h5>
                 @for (item of cart.items(); track item.product_id) {
                   <div class="d-flex gap-2 mb-2">
-                    <img [src]="item.image || 'https://placehold.co/50'" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
+                    <img [src]="(item.image || 'https://placehold.co/50') | imageUrl" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
                     <div class="flex-grow-1 small">
                       <div class="fw-semibold" style="color: #e2e8f0;">{{ item.name }}</div>
                       <div style="color: #64748b;">Qty: {{ item.quantity }} x {{ item.price | number:'1.2-2' }} DT</div>

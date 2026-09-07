@@ -5,11 +5,12 @@ import { ApiService } from '../../core/services/api.service';
 import { Product, Category } from '../../core/models';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterLink, ProductCardComponent, LoadingSpinnerComponent],
+  imports: [CommonModule, RouterLink, ProductCardComponent, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- Hero Photo with Parallax -->
@@ -67,7 +68,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
                     <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-2 overflow-hidden"
                          style="width: 50px; height: 50px; background: linear-gradient(135deg, #0ea5e9, #06b6d4); color: white; font-size: 1.3rem;">
                       @if (cat.image) {
-                        <img [src]="cat.image" [alt]="cat.name" style="width: 100%; height: 100%; object-fit: cover;" />
+                        <img [src]="cat.image | imageUrl" [alt]="cat.name" style="width: 100%; height: 100%; object-fit: cover;" />
                       } @else {
                         <i class="bi" [ngClass]="cat.icon || 'bi-tag'"></i>
                       }

@@ -4,11 +4,12 @@ import { RouterLink } from '@angular/router';
 import { Product } from '../../../core/models';
 import { CartService } from '../../../core/services/cart.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { ImageUrlPipe, resolveImageUrl } from '../../pipes/image-url.pipe';
 
 @Component({
   selector: 'app-product-card',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="card h-100 position-relative product-card" #cardEl
@@ -22,7 +23,7 @@ import { ToastService } from '../../../core/services/toast.service';
         </span>
       }
       <a [routerLink]="['/products', product.slug]" class="product-img-wrapper">
-        <img [src]="product.image || defaultPlaceholder" [alt]="product.name" class="card-img-top product-img" style="height: 200px; object-fit: cover;" loading="lazy" (error)="onImgError($event)">
+        <img [src]="(product.image || defaultPlaceholder) | imageUrl" [alt]="product.name" class="card-img-top product-img" style="height: 200px; object-fit: cover;" loading="lazy" (error)="onImgError($event)">
         <div class="product-img-overlay">
           <span class="overlay-icon"><i class="bi bi-eye"></i></span>
         </div>
@@ -121,7 +122,7 @@ export class ProductCardComponent {
     const cartRect = cartIcon.getBoundingClientRect();
 
     const clone = document.createElement('img');
-    clone.src = this.product.image || this.defaultPlaceholder;
+    clone.src = resolveImageUrl(this.product.image) || this.defaultPlaceholder;
     clone.className = 'fly-to-cart-clone';
     clone.style.left = imgRect.left + imgRect.width / 2 - 20 + 'px';
     clone.style.top = imgRect.top + imgRect.height / 2 - 20 + 'px';
