@@ -5,12 +5,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 import { Order } from '../../core/models';
 
 @Component({
   selector: 'app-order-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LoadingSpinnerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="container-fluid py-3 py-md-4 px-2 px-sm-3">
@@ -82,7 +83,7 @@ import { Order } from '../../core/models';
                           <div class="d-flex align-items-center gap-3">
                             @if (item.product_image) {
                               <img
-                                [src]="item.product_image"
+                                [src]="item.product_image | imageUrl"
                                 [alt]="item.product_name"
                                 class="rounded"
                                 style="width: 48px; height: 48px; object-fit: cover;"

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 interface Category {
   id: number;
@@ -18,7 +19,7 @@ interface Category {
 @Component({
   selector: 'app-categories',
   standalone: true,
-  imports: [CommonModule, FormsModule, LoadingSpinnerComponent],
+  imports: [CommonModule, FormsModule, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="container-fluid py-3 py-md-4 px-2 px-sm-3">
@@ -44,7 +45,7 @@ interface Category {
                     <div class="me-3 d-flex align-items-center">
                       <i class="bi bi-grip-vertical me-2" style="cursor: grab;" [style.color]="'var(--text-muted)'"></i>
                       @if (category.image) {
-                        <img [src]="category.image" [alt]="category.name" class="rounded-circle" [style.border]="'2px solid var(--border-color)'" style="width: 48px; height: 48px; object-fit: cover;" />
+                        <img [src]="category.image | imageUrl" [alt]="category.name" class="rounded-circle" [style.border]="'2px solid var(--border-color)'" style="width: 48px; height: 48px; object-fit: cover;" />
                       } @else {
                         <div class="rounded-circle d-flex align-items-center justify-content-center"
                              style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), #06b6d4);">
@@ -120,7 +121,7 @@ interface Category {
                     </div>
                   } @else if (imagePreview() || formData.image) {
                     <div class="image-preview-wrapper">
-                      <img [src]="imagePreview() || formData.image" alt="Preview" class="img-fluid rounded" />
+                      <img [src]="(imagePreview() || formData.image) | imageUrl" alt="Preview" class="img-fluid rounded" />
                       <button type="button" class="btn btn-sm btn-danger image-remove-btn" (click)="removeImage(); $event.stopPropagation()">
                         <i class="bi bi-x-lg"></i>
                       </button>

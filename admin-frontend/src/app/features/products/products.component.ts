@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 const FALLBACK_IMG = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCIgdmlld0JveD0iMCAwIDgwIDgwIj48cmVjdCB3aWR0aD0iODAiIGhlaWdodD0iODAiIGZpbGw9IiNlMmU4ZjAiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5NDBkODAiPjgwIHg4MDwvdGV4dD48L3N2Zz4=';
 
@@ -37,7 +38,7 @@ interface PaginatedResponse {
 @Component({
   selector: 'app-products',
   standalone: true,
-  imports: [CommonModule, FormsModule, LoadingSpinnerComponent],
+  imports: [CommonModule, FormsModule, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="products-page px-2 px-sm-3">
@@ -143,7 +144,7 @@ interface PaginatedResponse {
                       <input type="checkbox" class="form-check-input" [checked]="selectedIds().includes(product.id)" (change)="toggleSelect(product.id)" />
                     </td>
                     <td>
-                      <img [src]="product.image || FALLBACK_IMG" [alt]="product.name" class="rounded" width="40" height="40" style="object-fit: cover;" (error)="onImageError($event)" />
+                      <img [src]="(product.image || FALLBACK_IMG) | imageUrl" [alt]="product.name" class="rounded" width="40" height="40" style="object-fit: cover;" (error)="onImageError($event)" />
                     </td>
                     <td>
                       <div class="fw-semibold" [style.color]="'var(--text-primary)'" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ product.name }}</div>
@@ -319,13 +320,13 @@ interface PaginatedResponse {
                           <div class="image-grid mt-2">
                             @if (formData.image) {
                               <div class="image-thumb-wrapper">
-                                <img [src]="formData.image" alt="Main" class="image-thumb" (error)="onImageError($event)" />
+                                <img [src]="formData.image | imageUrl" alt="Main" class="image-thumb" (error)="onImageError($event)" />
                                 <span class="main-badge">Main</span>
                               </div>
                             }
                             @for (img of formData.images; track img; let i = $index) {
                               <div class="image-thumb-wrapper">
-                                <img [src]="img" alt="Gallery" class="image-thumb" (error)="onImageError($event)" />
+                                <img [src]="img | imageUrl" alt="Gallery" class="image-thumb" (error)="onImageError($event)" />
                                 <button type="button" class="image-remove-btn" (click)="removeGalleryImage(i); $event.stopPropagation()">
                                   <i class="bi bi-x-lg"></i>
                                 </button>

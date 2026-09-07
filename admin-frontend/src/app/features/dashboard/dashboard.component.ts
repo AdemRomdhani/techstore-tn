@@ -5,12 +5,13 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 import { AdminStats, Order } from '../../core/models';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, LoadingSpinnerComponent],
+  imports: [CommonModule, RouterLink, FormsModule, LoadingSpinnerComponent, ImageUrlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dashboard fade-in">
@@ -188,7 +189,7 @@ import { AdminStats, Order } from '../../core/models';
                 @for (product of stats()!.topProducts; track product.id; let i = $index) {
                   <div class="d-flex align-items-center gap-3 p-3" [style.border-bottom]="'1px solid var(--border-color)'">
                     <span class="badge rounded-circle" [style.background]="'var(--border-color)'" [style.color]="'var(--text-primary)'" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">{{ i + 1 }}</span>
-                    <img [src]="product.image || 'https://placehold.co/40x40'" [alt]="product.name" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                    <img [src]="(product.image || 'https://placehold.co/40x40') | imageUrl" [alt]="product.name" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
                     <div class="flex-grow-1 min-width-0">
                       <div class="fw-medium small text-truncate" [style.color]="'var(--text-primary)'">{{ product.name }}</div>
                       <small [style.color]="'var(--text-muted)'">{{ product.sold || 0 }} sold</small>
