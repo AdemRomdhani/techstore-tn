@@ -18,6 +18,6 @@ services:
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
       - key: CORS_ORIGINS
-        value: https://tech-store-frontend-1c73.onrender.com,https://tech-store-admin-xxxx.onrender.com
+        value: https://tech-store-frontend-1c73.onrender.com,https://tech-store-admin.onrender.com
       - key: GEMINI_API_KEY
         sync: false

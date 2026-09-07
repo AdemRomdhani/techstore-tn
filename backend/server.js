@@ -94,12 +94,12 @@ app.get('/api/health', (req, res) => {
 // AUTO-SEED: If DB is empty, seed it
 // =============================================================
 const db = require('./db/database');
-const { execSync } = require('child_process');
+const seed = require('./db/seed');
 try {
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
   if (userCount.cnt === 0) {
     console.log('   🌱 Empty database detected, seeding...');
-    execSync('node db/seed.js', { cwd: __dirname, stdio: 'inherit' });
+    seed();
   }
 } catch (err) {
   console.error('   ⚠️ Auto-seed failed:', err.message);
@@ -108,7 +108,7 @@ try {
 // Manual seed endpoint (before 404 handler)
 app.post('/api/seed', (req, res) => {
   try {
-    execSync('node db/seed.js', { cwd: __dirname, stdio: 'pipe' });
+    seed();
     res.json({ message: 'Database seeded successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
