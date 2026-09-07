@@ -29,29 +29,3 @@ services:
       name: tech-store-data
       mountPath: /var/data
       sizeGB: 1
-
-  # ── Customer Frontend (Static Site - Free) ─────────────────
-  - type: static_site
-    name: tech-store-frontend
-    plan: free
-    rootDir: frontend
-    buildCommand: >-
-      sed -i "s|__BACKEND_URL__|https://tech-store-api.onrender.com|g"
-      src/environments/environment.prod.ts &&
-      npm install &&
-      npm run build -- --configuration production
-    staticPublishPath: dist/tech-store/browser
-
-  # ── Admin Frontend (Static Site - Free) ────────────────────
-  - type: static_site
-    name: tech-store-admin
-    plan: free
-    rootDir: admin-frontend
-    buildCommand: >-
-      sed -i "s|__BACKEND_URL__|https://tech-store-api.onrender.com|g"
-      src/environments/environment.prod.ts &&
-      sed -i "s|__STORE_URL__|https://tech-store-frontend.onrender.com|g"
-      src/environments/environment.prod.ts &&
-      npm install &&
-      npm run build -- --configuration production
-    staticPublishPath: dist/tech-store-admin/browser
