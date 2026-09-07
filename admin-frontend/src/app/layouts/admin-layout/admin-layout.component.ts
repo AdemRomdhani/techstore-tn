@@ -7,7 +7,6 @@ import { NotificationService } from '../../core/services/notification.service';
 import { KeyboardService } from '../../core/services/keyboard.service';
 import { BreadcrumbComponent } from '../../shared/components/breadcrumb/breadcrumb.component';
 import { AdminAuthService } from '../../core/services/admin-auth.service';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-admin-layout',
@@ -383,7 +382,7 @@ export class AdminLayoutComponent implements OnInit {
   darkMode = inject(DarkModeService);
   notifService = inject(NotificationService);
   private keyboardService = inject(KeyboardService);
-  storeUrl = environment.storeUrl;
+  storeUrl = 'https://tech-store-frontend-1c73.onrender.com';
 
   sidebarCollapsed = signal(false);
   mobileMenuOpen = signal(false);
