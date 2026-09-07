@@ -17,15 +17,7 @@ services:
         value: 15m
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
-      - key: DB_PATH
-        value: /var/data/ecommerce.db
-      - key: UPLOAD_DIR
-        value: /var/data/uploads
       - key: CORS_ORIGINS
         value: https://tech-store-frontend.onrender.com,https://tech-store-admin.onrender.com
       - key: GEMINI_API_KEY
         sync: false
-    disk:
-      name: tech-store-data
-      mountPath: /var/data
-      sizeGB: 1
