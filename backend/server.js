@@ -97,9 +97,9 @@ app.get('/api/health', (req, res) => {
 const db = require('./db/database');
 const seed = require('./db/seed');
 try {
-  const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
-  if (userCount.cnt === 0) {
-    console.log('   🌱 Empty database detected, seeding...');
+  const adminCount = db.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'").get();
+  if (adminCount.cnt === 0) {
+    console.log('   🌱 No admin user found, seeding...');
     seed();
   }
 } catch (err) {
