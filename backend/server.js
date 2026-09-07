@@ -164,6 +164,18 @@ if (userCount.cnt === 0) {
   require('./db/seed');
 }
 
+// Manual seed endpoint
+app.post('/api/seed', (req, res) => {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as cnt FROM users').get();
+    if (count.cnt > 0) return res.json({ message: 'Database already has data' });
+    require('./db/seed');
+    res.json({ message: 'Database seeded successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`\n🚀 Tech Store API running on http://localhost:${PORT}`);
   console.log(`   Health:  http://localhost:${PORT}/api/health`);
