@@ -1,13 +1,13 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { environment } from '../../../environments/environment';
+
+const BACKEND_BASE = 'https://tech-store-api-wczy.onrender.com';
 
 function resolveImageUrl(value: string | null | undefined): string {
   if (!value) return '';
   if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) {
     return value;
   }
-  const base = environment.apiUrl.replace(/\/api\/?$/, '');
-  return base + value;
+  return BACKEND_BASE + value;
 }
 
 @Pipe({ name: 'imageUrl', standalone: true })
