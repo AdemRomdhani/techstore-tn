@@ -140,14 +140,6 @@ npm start                  # App on http://localhost:4200
 
 Visit **http://localhost:4200** in your browser.
 
-## 🔑 Default Login Credentials
-
-| Role     | Email              | Password   |
-|----------|-------------------|-----------|
-| Admin    | admin@shop.com    | admin123  |
-| Customer | john@shop.com     | user123   |
-| Customer | jane@shop.com     | user123   |
-
 ## 🎟️ Test Coupon Codes
 
 | Code      | Discount |
