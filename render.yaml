@@ -35,11 +35,11 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     envVars:
-      - key: BACKEND_URL
+      - key: BACKEND_HOST
         fromService:
           name: tech-store-api
           type: web
-          property: url
+          property: host
 
   # ── Admin Frontend ──────────────────────────────────────────
   - type: web
@@ -48,8 +48,8 @@ services:
     dockerfilePath: ./admin-frontend/Dockerfile
     dockerContext: ./admin-frontend
     envVars:
-      - key: BACKEND_URL
+      - key: BACKEND_HOST
         fromService:
           name: tech-store-api
           type: web
-          property: url
+          property: host
