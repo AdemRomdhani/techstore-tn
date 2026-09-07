@@ -129,4 +129,6 @@ console.log('\n📝 Login credentials:');
 console.log('   Admin: admin@shop.com / admin123');
 console.log('   User:  john@shop.com / user123');
 
-process.exit(0);
+if (require.main === module) {
+  process.exit(0);
+}
