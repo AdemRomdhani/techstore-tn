@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: '__BACKEND_URL__/api',
+  apiUrl: 'https://tech-store-api-wczy.onrender.com/api',
 };

@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: '__BACKEND_URL__/api',
-  storeUrl: '__STORE_URL__',
+  apiUrl: 'https://tech-store-api-wczy.onrender.com/api',
+  storeUrl: 'https://tech-store-frontend-1c73.onrender.com',
 };
