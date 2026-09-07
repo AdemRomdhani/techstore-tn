@@ -1,0 +1,55 @@
+services:
+  # ── Backend API ──────────────────────────────────────────────
+  - type: web
+    name: tech-store-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: DB_PATH
+        value: /var/data/ecommerce.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: CORS_ORIGINS
+        value: https://tech-store-frontend.onrender.com,https://tech-store-admin.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
+    disk:
+      name: tech-store-persistent
+      mountPath: /var/data
+      sizeGB: 1
+
+  # ── Customer Frontend ───────────────────────────────────────
+  - type: web
+    name: tech-store-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          name: tech-store-api
+          type: web
+          property: url
+
+  # ── Admin Frontend ──────────────────────────────────────────
+  - type: web
+    name: tech-store-admin
+    runtime: docker
+    dockerfilePath: ./admin-frontend/Dockerfile
+    dockerContext: ./admin-frontend
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          name: tech-store-api
+          type: web
+          property: url

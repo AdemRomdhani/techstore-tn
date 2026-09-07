@@ -1,0 +1,23 @@
+{
+  "env": {
+    "node": true,
+    "commonjs": true,
+    "es2021": true,
+    "jest": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "semi": ["error", "always"],
+    "quotes": ["warn", "single", { "avoidEscape": true }],
+    "indent": ["warn", 2],
+    "no-duplicate-imports": "error",
+    "eqeqeq": ["error", "always"],
+    "no-var": "error",
+    "prefer-const": "warn"
+  }
+}

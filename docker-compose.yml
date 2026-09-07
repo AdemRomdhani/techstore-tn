@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set - run: openssl rand -base64 64}
+      - JWT_EXPIRES_IN=15m
+      - JWT_REFRESH_EXPIRES_IN=7d
+      - DB_PATH=/app/data/ecommerce.db
+      - UPLOAD_DIR=/app/uploads
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4200,http://localhost:4201}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - EMAIL_FROM=${EMAIL_FROM:-Tech Store <noreply@techstore.com>}
+    volumes:
+      - backend_data:/app/data
+      - backend_uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    volumes:
+      - backend_uploads:/usr/share/nginx/uploads:ro
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "4201:80"
+    depends_on:
+      - backend
+    volumes:
+      - backend_uploads:/usr/share/nginx/uploads:ro
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  backend_uploads:

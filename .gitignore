@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.angular/
+.env
+*.db
+data/
+uploads/
+.DS_Store
+Thumbs.db
+*.log
+
+# Backend
+backend/data/
+backend/uploads/
+
+# Frontend
+frontend/dist/
+frontend/.angular/
+
+# Admin
+admin-frontend/dist/
+admin-frontend/.angular/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
