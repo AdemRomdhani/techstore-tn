@@ -97,7 +97,7 @@ app.get('/api/health', (req, res) => {
 // AUTO-SEED: If DB is empty, seed it
 // =============================================================
 const db = require('./db/database');
-const { initSchema } = require('./db/database');
+const { initSchema, pool } = require('./db/database');
 const seed = require('./db/seed');
 
 (async () => {
@@ -108,6 +108,15 @@ const seed = require('./db/seed');
       console.log('   🌱 No admin user found, seeding...');
       await seed();
     }
+    // Fix broken local image paths (ephemeral storage on Render = files lost)
+    await pool.query(`
+      UPDATE products SET image = '', images = '[]'
+      WHERE image LIKE '/uploads/%' AND image != ''
+    `);
+    await pool.query(`
+      UPDATE categories SET image = ''
+      WHERE image LIKE '/uploads/%' AND image != ''
+    `);
   } catch (err) {
     console.error('   ⚠️ Auto-seed failed:', err.message);
   }

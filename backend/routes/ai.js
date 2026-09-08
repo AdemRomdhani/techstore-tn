@@ -17,7 +17,15 @@ router.get('/status', auth, adminOnly, (req, res) => {
 });
 
 // POST /api/ai/extract-product - upload image(s) and extract product data
-router.post('/extract-product', auth, adminOnly, upload.array('images', 10), async (req, res) => {
+router.post('/extract-product', auth, adminOnly, (req, res, next) => {
+  upload.array('images', 10)(req, res, (err) => {
+    if (err) {
+      console.error('AI upload error:', err.message || err);
+      return res.status(400).json({ error: err.message || 'Image upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     // Fail fast if API key is not configured - do not waste time processing images
     if (!isApiKeyConfigured()) {

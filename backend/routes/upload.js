@@ -11,16 +11,22 @@ const router = express.Router();
 // POST /api/upload - upload a single image
 // Admin: can upload anything (product images, category images, etc.)
 // Regular users: can also upload (for profile avatars)
-router.post('/', auth, upload.single('image'), (req, res) => {
+router.post('/', auth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Upload error:', err.message || err);
+      return res.status(400).json({ error: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
   if (upload.isCloudinary) {
-    // Cloudinary: req.file.path is the full URL
     res.json({ url: req.file.path, filename: req.file.filename });
   } else {
-    // Local disk
     const url = `/uploads/${req.file.filename}`;
     res.json({ url, filename: req.file.filename });
   }

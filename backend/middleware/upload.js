@@ -21,11 +21,12 @@ if (isCloudinary) {
 
   const storage = new CloudinaryStorage({
     cloudinary,
-    params: {
+    params: async (req, file) => ({
       folder: 'tech-store',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif', 'heic'],
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'],
       transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
-    },
+      public_id: Date.now() + '-' + Math.round(Math.random() * 1e9),
+    }),
   });
 
   const fileFilter = (req, file, cb) => {
@@ -59,7 +60,7 @@ if (isCloudinary) {
     const extOk = allowed.test(path.extname(file.originalname).toLowerCase());
     const mimeOk = file.mimetype.startsWith('image/');
     if (extOk && mimeOk) cb(null, true);
-    else cb(new Error('Only image files are allowed (jpg, png, gif, webp, bmp, tiff, svg, heic, avif, etc.)'));
+    else cb(new Error('Only image files are allowed (jpg, png, gif, webp, etc.)'));
   };
 
   module.exports = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
