@@ -82,12 +82,14 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.get('/api/health', (req, res) => {
   const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
   const geminiConfigured = !!(key && key !== 'your_gemini_api_key_here');
+  const cloudinaryConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
   res.json({
     status: 'OK',
     service: 'Tech Store API',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     ai: { geminiConfigured, model: process.env.GEMINI_MODEL || 'gemini-3.6-flash' },
+    storage: { cloudinary: cloudinaryConfigured },
   });
 });
 
@@ -182,6 +184,13 @@ if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
   console.warn('   Then set: GEMINI_API_KEY=your_key_here  in backend/.env and restart.\n');
 } else {
   console.log(`   AI: Gemini configured ✓ (model: ${geminiModel})`);
+}
+
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  console.log('   Storage: Cloudinary ✓ (persistent image storage)');
+} else {
+  console.warn('   Storage: Local only ⚠️  (images lost on redeploy)');
+  console.warn('   Set CLOUDINARY_* env vars for persistent storage.\n');
 }
 
 app.listen(PORT, () => {

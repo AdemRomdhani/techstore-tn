@@ -3,6 +3,7 @@
 // =============================================================
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const db = require('../db/database');
 const { auth, adminOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -37,35 +38,62 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
     const errors = [];
 
     // Process all images in parallel for maximum speed
+    const isCloudinary = upload.isCloudinary;
     const results = await Promise.allSettled(
       req.files.map(async (file) => {
-        const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
-        const imageUrl = `/uploads/${file.filename}`;
+        // Determine image URL and local path for Gemini processing
+        let imageUrl;
+        let imagePath;
 
-        const result = await extractProductsFromSingleImage(imagePath);
-        const products = [];
-
-        for (const product of (result.products || [])) {
-          // Match category
-          if (product.category_suggestion) {
-            const suggestion = product.category_suggestion.toLowerCase();
-            const matched = categories.find(c =>
-              c.name.toLowerCase().includes(suggestion) ||
-              suggestion.includes(c.name.toLowerCase())
-            );
-            if (matched) {
-              product.category_id = matched.id;
-              product.category_name = matched.name;
-            }
-          }
-
-          // Assign THIS image to THIS product
-          product.image = imageUrl;
-          product.images = [imageUrl];
-          products.push(product);
+        if (isCloudinary) {
+          // Cloudinary: file.path is the full Cloudinary URL
+          imageUrl = file.path;
+          // Download from Cloudinary to temp file for Gemini
+          imagePath = path.join(__dirname, '..', 'uploads', 'tmp-' + file.filename);
+          const https = require('https');
+          const { pipeline } = require('stream/promises');
+          const response = await new Promise((resolve, reject) => {
+            https.get(imageUrl, (res) => {
+              if (res.statusCode !== 200) return reject(new Error(`Failed to download: ${res.statusCode}`));
+              resolve(res);
+            }).on('error', reject);
+          });
+          await pipeline(response, fs.createWriteStream(imagePath));
+        } else {
+          // Local disk
+          imagePath = path.join(__dirname, '..', 'uploads', file.filename);
+          imageUrl = `/uploads/${file.filename}`;
         }
 
-        return { file, products };
+        try {
+          const result = await extractProductsFromSingleImage(imagePath);
+          const products = [];
+
+          for (const product of (result.products || [])) {
+            if (product.category_suggestion) {
+              const suggestion = product.category_suggestion.toLowerCase();
+              const matched = categories.find(c =>
+                c.name.toLowerCase().includes(suggestion) ||
+                suggestion.includes(c.name.toLowerCase())
+              );
+              if (matched) {
+                product.category_id = matched.id;
+                product.category_name = matched.name;
+              }
+            }
+
+            product.image = imageUrl;
+            product.images = [imageUrl];
+            products.push(product);
+          }
+
+          return { file, products };
+        } finally {
+          // Clean up temp file if it was downloaded from Cloudinary
+          if (isCloudinary && fs.existsSync(imagePath)) {
+            fs.unlinkSync(imagePath);
+          }
+        }
       })
     );
 
