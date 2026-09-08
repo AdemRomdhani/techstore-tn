@@ -514,7 +514,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   newRating = 0;
   newComment = '';
   reviewerName = '';
-  canReview = false;
   submittingReview = false;
   selectedImage = '';
   slideClass = '';
@@ -543,7 +542,6 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
         }));
         this.reviews = res.product.reviews || [];
         this.quantity = 1;
-        this.checkCanReview();
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -655,15 +653,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       this.toast.success('Review submitted! Thank you.');
       const res: any = await this.api.getProductReviews(this.product!.id).toPromise();
       this.reviews = res.reviews || [];
-      this.checkCanReview();
     } catch (err: any) {
       this.toast.error(err.error?.error || 'Failed to submit');
     }
     this.submittingReview = false;
     this.cdr.markForCheck();
-  }
-
-  private checkCanReview(): void {
-    this.canReview = true;
   }
 }
