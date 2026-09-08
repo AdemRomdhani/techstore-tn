@@ -1,6 +1,9 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { environment } from '../../../environments/environment';
 
-const BACKEND_BASE = '';
+const BACKEND_BASE = environment.production
+  ? environment.apiUrl.replace(/\/api\/?$/, '')
+  : '';
 
 function resolveImageUrl(value: string | null | undefined): string {
   if (!value) return '';
