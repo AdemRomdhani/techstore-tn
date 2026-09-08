@@ -10,7 +10,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
   imports: [CommonModule, RouterLink, LoadingSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="container py-4 fade-in">
+    <div class="container py-3 py-md-4 px-2 px-sm-3 fade-in">
       @if (loading) {
         <app-loading-spinner></app-loading-spinner>
       } @else if (!order) {
@@ -36,8 +36,8 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
             <div class="card p-3 mb-3">
               <h6 class="fw-bold" style="color: #e2e8f0;">Items</h6>
               @for (item of order.items; track item.id) {
-                <div class="d-flex gap-3 py-2" style="border-bottom: 1px solid #334155;">
-                  <img [src]="item.product_image || 'https://placehold.co/80'" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px;">
+                <div class="d-flex gap-2 gap-md-3 py-2" style="border-bottom: 1px solid #334155;">
+                  <img [src]="item.product_image || 'https://placehold.co/80'" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
                   <div class="flex-grow-1">
                     <div class="fw-semibold" style="color: #e2e8f0;">{{ item.product_name }}</div>
                     <small style="color: #64748b;">Qty: {{ item.quantity }} x {{ item.price | number:'1.2-2' }} DT</small>

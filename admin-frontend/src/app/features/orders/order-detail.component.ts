@@ -334,6 +334,12 @@ import { Order } from '../../core/models';
     @media (max-width: 767.98px) {
       .order-info-grid .col-md-4 { flex: 0 0 50%; max-width: 50%; }
       .order-items-table td, .order-items-table th { padding: 0.4rem 0.5rem; font-size: 0.8rem; }
+      .timeline { padding-left: 20px; }
+      .timeline-marker { left: -20px; width: 18px; height: 18px; }
+    }
+    @media (max-width: 576px) {
+      .order-detail-stack .card-body { padding: 0.6rem !important; }
+      .order-detail-stack .card-header { padding: 0.5rem 0.6rem !important; }
     }
   `],
 })

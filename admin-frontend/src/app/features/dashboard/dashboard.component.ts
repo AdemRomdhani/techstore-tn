@@ -41,8 +41,8 @@ import { AdminStats, Order } from '../../core/models';
         <!-- Stat Cards -->
         <div class="row g-2 g-md-3 mb-3 mb-md-4">
           <div class="col-6 col-md-6 col-xl-3">
-            <div class="card stat-card p-3">
-              <div class="d-flex align-items-center gap-3">
+            <div class="card stat-card p-2 p-md-3">
+              <div class="d-flex align-items-center gap-2 gap-md-3">
                 <div class="stat-icon bg-success bg-opacity-10 text-success rounded">
                   <i class="bi bi-currency-dollar"></i>
                 </div>
@@ -54,8 +54,8 @@ import { AdminStats, Order } from '../../core/models';
             </div>
           </div>
           <div class="col-6 col-md-6 col-xl-3">
-            <div class="card stat-card p-3">
-              <div class="d-flex align-items-center gap-3">
+            <div class="card stat-card p-2 p-md-3">
+              <div class="d-flex align-items-center gap-2 gap-md-3">
                 <div class="stat-icon bg-primary bg-opacity-10 text-primary rounded">
                   <i class="bi bi-cart-check"></i>
                 </div>
@@ -70,8 +70,8 @@ import { AdminStats, Order } from '../../core/models';
             </div>
           </div>
           <div class="col-6 col-md-6 col-xl-3">
-            <div class="card stat-card p-3">
-              <div class="d-flex align-items-center gap-3">
+            <div class="card stat-card p-2 p-md-3">
+              <div class="d-flex align-items-center gap-2 gap-md-3">
                 <div class="stat-icon bg-warning bg-opacity-10 text-warning rounded">
                   <i class="bi bi-box-seam"></i>
                 </div>

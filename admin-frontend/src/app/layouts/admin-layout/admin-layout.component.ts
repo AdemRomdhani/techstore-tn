@@ -355,6 +355,17 @@ import { AdminAuthService } from '../../core/services/admin-auth.service';
       .search-bar {
         display: none !important;
       }
+      .notif-panel {
+        left: 4px;
+        right: 4px;
+        width: auto;
+      }
+      .admin-header h5 {
+        font-size: 0.85rem !important;
+      }
+      .admin-header .d-flex {
+        gap: 0.5rem !important;
+      }
     }
     .session-modal-backdrop {
       position: fixed;

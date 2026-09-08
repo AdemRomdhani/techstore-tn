@@ -265,6 +265,12 @@ import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
         display: none !important;
       }
     }
+    @media (max-width: 576px) {
+      .cart-panel { width: 100vw; max-width: 100vw; }
+      .cart-panel-header { padding: 0.75rem; }
+      .cart-panel-body { padding: 0.4rem; padding-bottom: 160px; }
+      .cart-panel-footer { padding: 0.75rem; }
+    }
   `],
 })
 export class MainLayoutComponent implements OnInit {

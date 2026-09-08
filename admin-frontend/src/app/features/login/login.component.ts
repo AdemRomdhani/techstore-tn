@@ -78,6 +78,10 @@ import { ToastService } from '../../core/services/toast.service';
       border: 1px solid #1e293b;
       border-radius: 16px;
     }
+    @media (max-width: 576px) {
+      .login-wrapper { padding: 0.5rem; }
+      .login-card { padding: 1.25rem; border-radius: 12px; }
+    }
   `],
 })
 export class LoginComponent {

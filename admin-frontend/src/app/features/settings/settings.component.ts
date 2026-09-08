@@ -34,7 +34,7 @@ interface Settings {
           <div class="row g-4">
             <div class="col-lg-8">
               <div class="card mb-4" [style.background]="'var(--bg-surface)'" style="border-radius: 12px;" [style.border]="'1px solid var(--border-color)'">
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-md-4">
                   <div class="d-flex align-items-center mb-4">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
                          style="width: 40px; height: 40px; background: linear-gradient(135deg, #0ea5e9, #06b6d4);">
@@ -61,7 +61,7 @@ interface Settings {
               </div>
 
               <div class="card" style="border-radius: 12px;" [style.background]="'var(--bg-surface)'" [style.border]="'1px solid var(--border-color)'">
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-md-4">
                   <div class="d-flex align-items-center mb-4">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
                          style="width: 40px; height: 40px; background: linear-gradient(135deg, #10b981, #059669);">
@@ -114,7 +114,7 @@ interface Settings {
 
             <div class="col-lg-4">
               <div class="card" style="border-radius: 12px;" [style.background]="'var(--bg-surface)'" [style.border]="'1px solid var(--border-color)'">
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-md-4">
                   <h6 class="fw-bold mb-3" [style.color]="'var(--text-primary)'">Preview</h6>
                   <div class="rounded-3 p-3 mb-3" [style.background]="'var(--bg-surface-alt)'" [style.border]="'1px solid var(--border-color)'">
                     <div class="d-flex align-items-center mb-2">

@@ -656,9 +656,19 @@ interface PaginatedResponse {
       .form-switch .form-check-input { width: 2em; height: 1em; }
       .pagination { gap: 2px; }
       .page-link { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-      .modal-body { padding: 1rem; }
-      .form-section { padding: 0.75rem; }
-      .form-section-title { font-size: 0.8rem; }
+      .modal-body { padding: 0.75rem; }
+      .form-section { padding: 0.6rem; }
+      .form-section-title { font-size: 0.78rem; }
+      .image-thumb-wrapper { width: 56px; height: 56px; }
+    }
+    @media (max-width: 576px) {
+      .page-header { flex-wrap: wrap; gap: 0.4rem !important; }
+      .page-header h2 { font-size: 0.95rem !important; }
+      .table td, .table th { padding: 0.35rem 0.3rem; font-size: 0.75rem; }
+      .btn { padding: 0.3rem 0.5rem; font-size: 0.78rem; min-height: 32px; }
+      .form-control, .form-select { padding: 0.35rem 0.5rem; font-size: 0.82rem; }
+      .card-body { padding: 0.5rem !important; }
+      .card-header { padding: 0.4rem 0.5rem !important; }
     }
   `]
 })

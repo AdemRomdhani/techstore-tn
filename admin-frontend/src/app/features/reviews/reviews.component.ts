@@ -51,10 +51,10 @@ interface Review {
               <thead>
                 <tr [style.border-color]="'var(--border-color)'">
                   <th class="ps-3" [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Customer</th>
-                  <th [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Product</th>
+                  <th class="d-mobile-none" [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Product</th>
                   <th [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Rating</th>
-                  <th [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Comment</th>
-                  <th [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Date</th>
+                  <th class="d-mobile-none" [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Comment</th>
+                  <th class="d-mobile-none" [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Date</th>
                   <th class="pe-3 text-end" [style.color]="'var(--text-muted)'" style="font-size: 0.8rem;">Actions</th>
                 </tr>
               </thead>
@@ -78,7 +78,7 @@ interface Review {
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td class="d-mobile-none">
                       <span style="font-size: 0.85rem; color: var(--text-primary);">{{ review.product_name || 'Product #' + review.product_id }}</span>
                     </td>
                     <td>
@@ -88,10 +88,10 @@ interface Review {
                         }
                       </div>
                     </td>
-                    <td>
+                    <td class="d-mobile-none">
                       <span class="text-truncate d-inline-block" style="max-width: 200px; font-size: 0.85rem; color: var(--text-muted);">{{ review.comment || '—' }}</span>
                     </td>
-                    <td>
+                    <td class="d-mobile-none">
                       <small style="color: var(--text-muted); font-size: 0.75rem;">{{ formatDate(review.created_at) }}</small>
                     </td>
                     <td class="pe-3 text-end">

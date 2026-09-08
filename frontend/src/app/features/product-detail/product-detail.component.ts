@@ -64,6 +64,9 @@ import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
       .product-gallery-thumb { width: 60px; height: 60px; }
     }
     @media (max-width: 576px) {
+      .gallery-main-img { max-height: 400px; }
+      .gallery-main-img.is-portrait { max-height: 500px; }
+      .gallery-wrapper { min-height: 280px; }
       .gallery-arrow { width: 34px; height: 34px; font-size: 1rem; }
     }
     .product-gallery-thumb:hover { border-color: #64748b; }
@@ -211,6 +214,11 @@ import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
       backdrop-filter: blur(4px);
       z-index: 10;
       pointer-events: none;
+    }
+    @media (max-width: 576px) {
+      .gallery-counter { font-size: 0.65rem; padding: 1px 8px; bottom: 8px; }
+      .qty-btn { width: 34px; height: 38px; font-size: 1.1rem; }
+      .qty-value { min-width: 38px; height: 38px; font-size: 0.95rem; }
     }
   `],
   template: `
