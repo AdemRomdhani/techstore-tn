@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap, lastValueFrom, shareReplay, catchError, throwError, of } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 export interface User {
   id: number;
@@ -24,7 +25,7 @@ const USER_KEY = 'admin_user';
 export class AdminAuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
-  private readonly API = 'https://tech-store-api-wczy.onrender.com/api/admin-auth';
+  private readonly API = environment.apiUrl + '/admin-auth';
 
   currentUser = signal<User | null>(this.getStoredUser());
   isAuthenticated = signal<boolean>(!!this.getToken());

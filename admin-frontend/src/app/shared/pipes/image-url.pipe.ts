@@ -1,6 +1,6 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
-const BACKEND_BASE = 'https://tech-store-api-wczy.onrender.com';
+const BACKEND_BASE = '';
 
 function resolveImageUrl(value: string | null | undefined): string {
   if (!value) return '';

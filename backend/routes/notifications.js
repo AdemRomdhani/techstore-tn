@@ -11,10 +11,10 @@ router.get('/', auth, async (req, res) => {
   try {
     const notifications = await db.prepare(
       'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
-    ).all(1);
+    ).all(req.user.id);
     const unreadCount = (await db.prepare(
       'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0'
-    ).get(1)).count;
+    ).get(req.user.id)).count;
     res.json({ notifications, unreadCount });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -24,7 +24,7 @@ router.get('/', auth, async (req, res) => {
 // PUT /api/notifications/read-all - Mark all as read
 router.put('/read-all', auth, async (req, res) => {
   try {
-    await db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0').run(1);
+    await db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0').run(req.user.id);
     res.json({ message: 'All notifications marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update notifications' });
@@ -36,7 +36,7 @@ router.put('/:id/read', auth, async (req, res) => {
   try {
     const result = await db.prepare(
       'UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?'
-    ).run(req.params.id, 1);
+    ).run(req.params.id, req.user.id);
     if (result.changes === 0) return res.status(404).json({ error: 'Notification not found' });
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
@@ -47,7 +47,7 @@ router.put('/:id/read', auth, async (req, res) => {
 // DELETE /api/notifications/:id - Delete notification
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const result = await db.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').run(req.params.id, 1);
+    const result = await db.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
     if (result.changes === 0) return res.status(404).json({ error: 'Notification not found' });
     res.json({ message: 'Notification deleted' });
   } catch (err) {

@@ -1,7 +1,7 @@
 {
   "name": "ecommerce-backend",
   "version": "1.0.0",
-  "description": "E-commerce REST API with Node.js, Express and SQLite",
+  "description": "E-commerce REST API with Node.js, Express and PostgreSQL",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

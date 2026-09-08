@@ -502,6 +502,18 @@ interface PaginatedResponse {
                     </p>
                   </div>
 
+                  @if (aiWarnings().length > 0) {
+                    <div class="alert alert-warning mb-3">
+                      <i class="bi bi-exclamation-triangle me-1"></i>
+                      <strong>{{ aiWarnings().length }} image(s) failed to analyze:</strong>
+                      <ul class="mb-0 mt-1">
+                        @for (warning of aiWarnings(); track warning) {
+                          <li class="small">{{ warning }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+
                   @for (product of aiExtractedProducts(); track product.name; let i = $index) {
                     <div class="ai-product-card mb-3 p-3">
                       <div class="d-flex justify-content-between align-items-center mb-2">
@@ -688,6 +700,7 @@ export class ProductsComponent implements OnInit {
   aiAnalyzing = signal(false);
   aiSaving = signal(false);
   aiError = signal('');
+  aiWarnings = signal<string[]>([]);
   aiExtractedProducts = signal<any[]>([]);
   aiCategories = signal<Category[]>([]);
 
@@ -1036,6 +1049,7 @@ export class ProductsComponent implements OnInit {
     this.aiStep.set('upload');
     this.aiSelectedFiles.set([]);
     this.aiError.set('');
+    this.aiWarnings.set([]);
     this.aiExtractedProducts.set([]);
     this.aiDragOver.set(false);
     this.aiAnalyzing.set(false);
@@ -1102,6 +1116,7 @@ export class ProductsComponent implements OnInit {
     if (this.aiSelectedFiles().length === 0) return;
     this.aiAnalyzing.set(true);
     this.aiError.set('');
+    this.aiWarnings.set([]);
 
     this.api.aiExtractProduct(this.aiSelectedFiles()).subscribe({
       next: (res: any) => {
@@ -1117,6 +1132,14 @@ export class ProductsComponent implements OnInit {
           image: p.image || '',
           images: p.images || [],
         }));
+        // Collect per-image warnings if some images failed
+        const warnings: string[] = [];
+        if (res.errors && Array.isArray(res.errors)) {
+          res.errors.forEach((e: any) => {
+            warnings.push(`${e.filename}: ${e.reason}`);
+          });
+        }
+        this.aiWarnings.set(warnings);
         this.aiExtractedProducts.set(products);
         this.aiStep.set('review');
         this.aiAnalyzing.set(false);

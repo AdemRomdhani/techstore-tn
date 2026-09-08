@@ -52,15 +52,18 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code blocks, no 
 }
 
 RULES:
-- If the image shows MULTIPLE different products (like a catalog, shelf, or invoice/facture), create a SEPARATE entry for EACH product.
+- CRITICAL: You MUST extract EVERY SINGLE product visible in the image. Do NOT skip any product. Count all items and return all of them.
+- If the image shows MULTIPLE different products (like a catalog, shelf, invoice, or group photo), create a SEPARATE entry for EACH product. Do NOT combine them into one entry.
 - If the image is an INVOICE/FACTURE: extract ALL line items. Use unit price as "price" and quantity as "stock". If there are original/discounted prices, use old_price for the original.
 - If the image is a SINGLE PRODUCT PHOTO: extract that one product.
+- If you see 4 products in the image, you MUST return 4 separate product entries. If you see 10, return 10.
 - For prices: numbers only, no currency symbols. Just the numeric value.
 - Default stock to 0 if not visible. For invoices, use the quantity.
 - Guess a relevant category (Electronics, Clothing, Home & Kitchen, Sports, Beauty, Toys, Automotive, etc.)
 - If a field is unclear, use null for optional fields and sensible defaults for required fields.
 - Description must be in English.
-- Be thorough: look for brand logos, model numbers, packaging text, price tags.`;
+- Be thorough: look for brand logos, model numbers, packaging text, price tags.
+- Double-check your output: count the products in your JSON array and make sure it matches the number of distinct products you see in the image.`;
 
 /**
  * Extract products from a SINGLE image.
@@ -95,14 +98,14 @@ async function extractProductsFromSingleImage(imagePath) {
             {
               role: 'user',
               parts: [
-                { text: 'Analyze this image and extract ALL product information. If there are multiple products visible, list each one separately.' },
+                { text: 'Analyze this image and extract ALL product information. If there are multiple products visible, list each one as a separate entry in the products array. Do not skip any product.' },
                 { inlineData: { mimeType, data: base64Image } },
               ],
             },
           ],
           config: {
             systemInstruction: SYSTEM_PROMPT,
-            maxOutputTokens: 4000,
+            maxOutputTokens: 8192,
             temperature: 0.1,
           },
         });

@@ -61,7 +61,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 });
 
 // ADMIN: reorder categories (must be before /:id)
-router.put('/admin/reorder', auth, adminOnly, (req, res) => {
+router.put('/admin/reorder', auth, adminOnly, async (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
   try {

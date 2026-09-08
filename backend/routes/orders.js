@@ -79,30 +79,29 @@ router.post('/guest', async (req, res) => {
 
     let orderId;
     const tx = db.transaction(async (client) => {
-      // Increment coupon usage inside transaction (prevents race condition)
       if (couponId) {
-        await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [couponId]);
+        await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = $1', [couponId]);
       }
 
-      // Use guest user for guest orders
       let guestUser = (await client.query("SELECT id FROM users WHERE email = 'guest@system.local'")).rows[0];
       if (!guestUser) {
         const bcrypt = require('bcryptjs');
         const hash = bcrypt.hashSync('guest_' + Date.now(), 10);
-        const result = await client.query("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)", ['Guest', 'guest@system.local', hash, 'customer']);
-        guestUser = { id: result.lastInsertRowid };
+        const result = await client.query("INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id", ['Guest', 'guest@system.local', hash, 'customer']);
+        guestUser = { id: result.rows[0].id };
       }
 
       const orderResult = await client.query(`
         INSERT INTO orders (user_id, total, status, payment_method, shipping_name, shipping_nom, shipping_prenom, shipping_address, shipping_city, shipping_zip, shipping_country, shipping_phone, notes)
-        VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING id
       `, [guestUser.id, total, payment_method || 'cod', shipping_name, nom, prenom, shipping_address, shipping_city, '', 'Tunisie', shipping_phone, '']);
-      orderId = orderResult.lastInsertRowid;
+      orderId = orderResult.rows[0].id;
 
       for (const i of orderItems) {
-        await client.query(`INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity) VALUES (?, ?, ?, ?, ?, ?)`, [orderId, i.product_id, i.product_name, i.product_image, i.price, i.quantity]);
-        await client.query('UPDATE products SET stock = stock - ? WHERE id = ?', [i.quantity, i.product_id]);
-        await client.query('INSERT INTO inventory_history (product_id, change, reason, reference_id, user_id) VALUES (?, ?, ?, ?, NULL)', [i.product_id, -i.quantity, 'Order #' + orderId, orderId]);
+        await client.query(`INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity) VALUES ($1, $2, $3, $4, $5, $6)`, [orderId, i.product_id, i.product_name, i.product_image, i.price, i.quantity]);
+        await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [i.quantity, i.product_id]);
+        await client.query('INSERT INTO inventory_history (product_id, change, reason, reference_id, user_id) VALUES ($1, $2, $3, $4, NULL)', [i.product_id, -i.quantity, 'Order #' + orderId, orderId]);
       }
     });
     await tx();
@@ -189,11 +188,11 @@ router.put('/my/:id/cancel', auth, async (req, res) => {
     }
 
     const tx = db.transaction(async (client) => {
-      await client.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [req.params.id]);
-      const items = (await client.query('SELECT * FROM order_items WHERE order_id = ?', [req.params.id])).rows;
+      await client.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [req.params.id]);
+      const items = (await client.query('SELECT * FROM order_items WHERE order_id = $1', [req.params.id])).rows;
       for (const item of items) {
         if (item.product_id) {
-          await client.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+          await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
       }
     });
@@ -290,17 +289,15 @@ router.delete('/admin/:id', auth, adminOnly, async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const tx = db.transaction(async (client) => {
-      // Restore stock (only for items with valid product_id)
-      const items = (await client.query('SELECT * FROM order_items WHERE order_id = ?', [req.params.id])).rows;
+      const items = (await client.query('SELECT * FROM order_items WHERE order_id = $1', [req.params.id])).rows;
       for (const item of items) {
         if (item.product_id) {
-          await client.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+          await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
       }
-      // Delete related data
-      await client.query('DELETE FROM order_notes WHERE order_id = ?', [req.params.id]);
-      await client.query('DELETE FROM order_items WHERE order_id = ?', [req.params.id]);
-      await client.query('DELETE FROM orders WHERE id = ?', [req.params.id]);
+      await client.query('DELETE FROM order_notes WHERE order_id = $1', [req.params.id]);
+      await client.query('DELETE FROM order_items WHERE order_id = $1', [req.params.id]);
+      await client.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
     });
     await tx();
 

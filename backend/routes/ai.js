@@ -36,13 +36,14 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
     const allProducts = [];
     const errors = [];
 
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
-      const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
-      const imageUrl = `/uploads/${file.filename}`;
+    // Process all images in parallel for maximum speed
+    const results = await Promise.allSettled(
+      req.files.map(async (file) => {
+        const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
+        const imageUrl = `/uploads/${file.filename}`;
 
-      try {
         const result = await extractProductsFromSingleImage(imagePath);
+        const products = [];
 
         for (const product of (result.products || [])) {
           // Match category
@@ -61,30 +62,39 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
           // Assign THIS image to THIS product
           product.image = imageUrl;
           product.images = [imageUrl];
+          products.push(product);
+        }
 
+        return { file, products };
+      })
+    );
+
+    // Collect products and per-image errors from parallel results
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        for (const product of result.value.products) {
           allProducts.push(product);
         }
-      } catch (aiErr) {
-        console.error(`AI extraction failed for ${file.filename}:`, aiErr.message);
-        // If this is a config error, fail fast with clear message instead of masking as "unclear photos"
-        if (aiErr.message.includes('GEMINI_API_KEY') || aiErr.message.includes('API key')) {
+      } else {
+        const file = req.files[i];
+        const reason = result.reason?.message || 'Unknown error';
+        console.error(`AI extraction failed for ${file.filename}:`, reason);
+
+        // Config error -> fail fast
+        if (reason.includes('GEMINI_API_KEY') || reason.includes('API key')) {
           return res.status(503).json({
             error: 'AI service not configured. GEMINI_API_KEY is missing.',
             details: 'Get a free key at https://aistudio.google.com/apikey then set GEMINI_API_KEY in backend/.env and restart the backend.',
             code: 'GEMINI_API_KEY_MISSING'
           });
         }
-        // Model deprecated / not found - surface with actionable message
-        if (aiErr.message.includes('is no longer available') || aiErr.message.includes('NOT_FOUND') || aiErr.message.includes('404')) {
-          errors.push({ filename: file.filename, reason: aiErr.message, isModelError: true });
-        } else {
-          errors.push({ filename: file.filename, reason: aiErr.message });
-        }
+
+        const isModelError = reason.includes('is no longer available') || reason.includes('NOT_FOUND') || reason.includes('404');
+        errors.push({ filename: file.filename, reason, isModelError, index: i });
       }
-    }
+    });
 
     if (allProducts.length === 0) {
-      // Check if all errors are model-not-found -> return 502 with fix instructions
       const allModelErrors = errors.length > 0 && errors.every(e => e.isModelError);
       if (allModelErrors) {
         return res.status(502).json({
@@ -93,7 +103,6 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
           code: 'MODEL_NOT_FOUND'
         });
       }
-      // No leaked 503 above, so remaining failures are model/parse errors
       return res.status(422).json({
         error: errors.length > 0
           ? `AI failed to analyze ${errors.length} image(s). Please try with clearer photos.`
@@ -102,7 +111,12 @@ router.post('/extract-product', auth, adminOnly, upload.array('images', 10), asy
       });
     }
 
-    res.json({ products: allProducts, categories });
+    // Always include error details so frontend can show which images failed
+    res.json({
+      products: allProducts,
+      categories,
+      ...(errors.length > 0 ? { errors: errors.map(e => ({ filename: e.filename, reason: e.reason })) } : {})
+    });
   } catch (err) {
     console.error('AI extract error:', err);
     if (err.message.includes('AI returned invalid data')) {

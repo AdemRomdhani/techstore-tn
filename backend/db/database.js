@@ -375,9 +375,9 @@ const initSchema = async () => {
   } catch (err) {}
 
   // PostgreSQL full-text search setup
-  await pool.query(`
-    ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;`);
 
+  await pool.query(`
     CREATE OR REPLACE FUNCTION products_search_trigger() RETURNS trigger AS $$
     BEGIN
       NEW.search_vector :=
@@ -387,18 +387,19 @@ const initSchema = async () => {
       RETURN NEW;
     END
     $$ LANGUAGE plpgsql;
+  `);
 
-    DROP TRIGGER IF EXISTS products_search_update ON products;
+  await pool.query(`DROP TRIGGER IF EXISTS products_search_update ON products;`);
+  await pool.query(`
     CREATE TRIGGER products_search_update
       BEFORE INSERT OR UPDATE ON products
       FOR EACH ROW EXECUTE FUNCTION products_search_trigger();
-
-    CREATE INDEX IF NOT EXISTS idx_products_search ON products USING GIN(search_vector);
   `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_search ON products USING GIN(search_vector);`);
 
   // Rebuild search vector for existing products
   await pool.query(`
-    UPDATE products SET search_vector :=
+    UPDATE products SET search_vector =
       setweight(to_tsvector('english', COALESCE(name, '')), 'A') ||
       setweight(to_tsvector('english', COALESCE(description, '')), 'B') ||
       setweight(to_tsvector('english', COALESCE(brand, '')), 'A')

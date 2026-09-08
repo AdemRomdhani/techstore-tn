@@ -7,6 +7,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Tech Store - La technologie a portee de main. Meilleurs produits, livraison rapide et offres incroyables.">
   <link rel="icon" type="image/png" href="assets/781550622_1700303331226624_6712455829304365264_n-removebg-preview.png">
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.message && e.message.includes('startTime')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        return true;
+      }
+    }, true);
+  </script>
 </head>
 <body>
   <app-root>
