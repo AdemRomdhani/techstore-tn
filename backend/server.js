@@ -12,6 +12,7 @@ const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
+const upload = require('./middleware/upload');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -82,7 +83,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.get('/api/health', (req, res) => {
   const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
   const geminiConfigured = !!(key && key !== 'your_gemini_api_key_here');
-  const cloudinaryConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+  const cloudinaryConfigured = !!(upload.cloudinary);
   res.json({
     status: 'OK',
     service: 'Tech Store API',
@@ -195,8 +196,10 @@ if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
   console.log(`   AI: Gemini configured ✓ (model: ${geminiModel})`);
 }
 
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-  console.log('   Storage: Cloudinary ✓ (persistent image storage)');
+if (upload.cloudinary) {
+  console.log('   Storage: Cloudinary configured (will try persistent upload)');
+} else if (process.env.CLOUDINARY_CLOUD_NAME) {
+  console.warn('   ⚠️  Cloudinary env vars set but module failed to load - using local storage');
 } else {
   console.warn('   Storage: Local only ⚠️  (images lost on redeploy)');
   console.warn('   Set CLOUDINARY_* env vars for persistent storage.\n');

@@ -1,16 +1,14 @@
 // =============================================================
-// UPLOAD ROUTE - handles image file uploads via multer
-// Supports Cloudinary (production) or local disk (development)
+// UPLOAD ROUTE - save locally, then optionally push to Cloudinary
 // =============================================================
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const upload = require('../middleware/upload');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// POST /api/upload - upload a single image
-// Admin: can upload anything (product images, category images, etc.)
-// Regular users: can also upload (for profile avatars)
 router.post('/', auth, (req, res, next) => {
   upload.single('image')(req, res, (err) => {
     if (err) {
@@ -19,17 +17,32 @@ router.post('/', auth, (req, res, next) => {
     }
     next();
   });
-}, (req, res) => {
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  if (upload.isCloudinary) {
-    res.json({ url: req.file.path, filename: req.file.filename });
-  } else {
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url, filename: req.file.filename });
+  const localPath = req.file.path;
+  const localUrl = `/uploads/${req.file.filename}`;
+
+  // Try Cloudinary upload if configured
+  if (upload.cloudinary) {
+    try {
+      const result = await upload.cloudinary.uploader.upload(localPath, {
+        folder: 'tech-store',
+        transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
+      });
+      // Delete local file after successful Cloudinary upload
+      fs.unlink(localPath, () => {});
+      return res.json({ url: result.secure_url, filename: req.file.filename });
+    } catch (err) {
+      console.error('Cloudinary upload failed, using local file:', err.message);
+      // Fall through to local URL
+    }
   }
+
+  // Local file (development or Cloudinary fallback)
+  res.json({ url: localUrl, filename: req.file.filename });
 });
 
 module.exports = router;

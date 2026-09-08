@@ -46,32 +46,10 @@ router.post('/extract-product', auth, adminOnly, (req, res, next) => {
     const errors = [];
 
     // Process all images in parallel for maximum speed
-    const isCloudinary = upload.isCloudinary;
     const results = await Promise.allSettled(
       req.files.map(async (file) => {
-        // Determine image URL and local path for Gemini processing
-        let imageUrl;
-        let imagePath;
-
-        if (isCloudinary) {
-          // Cloudinary: file.path is the full Cloudinary URL
-          imageUrl = file.path;
-          // Download from Cloudinary to temp file for Gemini
-          imagePath = path.join(__dirname, '..', 'uploads', 'tmp-' + file.filename);
-          const https = require('https');
-          const { pipeline } = require('stream/promises');
-          const response = await new Promise((resolve, reject) => {
-            https.get(imageUrl, (res) => {
-              if (res.statusCode !== 200) return reject(new Error(`Failed to download: ${res.statusCode}`));
-              resolve(res);
-            }).on('error', reject);
-          });
-          await pipeline(response, fs.createWriteStream(imagePath));
-        } else {
-          // Local disk
-          imagePath = path.join(__dirname, '..', 'uploads', file.filename);
-          imageUrl = `/uploads/${file.filename}`;
-        }
+        const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
+        let imageUrl = `/uploads/${file.filename}`;
 
         try {
           const result = await extractProductsFromSingleImage(imagePath);
@@ -95,15 +73,39 @@ router.post('/extract-product', auth, adminOnly, (req, res, next) => {
             products.push(product);
           }
 
-          return { file, products };
-        } finally {
-          // Clean up temp file if it was downloaded from Cloudinary
-          if (isCloudinary && fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
-          }
+          return { file, products, imagePath, imageUrl };
+        } catch (err) {
+          throw err;
         }
       })
     );
+
+    // Upload successful images to Cloudinary in parallel (non-blocking for product creation)
+    const fulfilledResults = results.filter(r => r.status === 'fulfilled');
+    if (upload.cloudinary && fulfilledResults.length > 0) {
+      const { pipeline } = require('stream/promises');
+      const cloudinaryResults = await Promise.allSettled(
+        fulfilledResults.map(async (result) => {
+          const { imagePath, imageUrl, products } = result.value;
+          try {
+            const cloudResult = await upload.cloudinary.uploader.upload(imagePath, {
+              folder: 'tech-store',
+              transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
+            });
+            // Update product image URLs to Cloudinary
+            for (const product of products) {
+              product.image = cloudResult.secure_url;
+              product.images = [cloudResult.secure_url];
+            }
+            fs.unlink(imagePath, () => {});
+            return cloudResult;
+          } catch (cloudErr) {
+            console.error(`Cloudinary upload failed for ${imagePath}:`, cloudErr.message);
+            // Keep local URL, don't fail
+          }
+        })
+      );
+    }
 
     // Collect products and per-image errors from parallel results
     results.forEach((result, i) => {
