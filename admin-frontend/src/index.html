@@ -11,6 +11,11 @@
     if (localStorage.getItem('admin_dark_mode') === 'true') {
       document.documentElement.classList.add('dark-mode');
     }
+    window.onerror = function(msg) {
+      if (msg && (msg.includes('startTime') || msg.includes('reportAllChanges'))) {
+        return true;
+      }
+    };
   </script>
 </head>
 <body>
