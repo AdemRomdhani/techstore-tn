@@ -8,13 +8,11 @@
   <meta name="description" content="Tech Store - La technologie a portee de main. Meilleurs produits, livraison rapide et offres incroyables.">
   <link rel="icon" type="image/png" href="assets/781550622_1700303331226624_6712455829304365264_n-removebg-preview.png">
   <script>
-    window.addEventListener('error', function(e) {
-      if (e.message && e.message.includes('startTime')) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
+    window.onerror = function(msg) {
+      if (msg && (msg.includes('startTime') || msg.includes('reportAllChanges'))) {
         return true;
       }
-    }, true);
+    };
   </script>
 </head>
 <body>
