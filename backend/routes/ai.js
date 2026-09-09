@@ -45,40 +45,47 @@ router.post('/extract-product', auth, adminOnly, (req, res, next) => {
     const allProducts = [];
     const errors = [];
 
-    // Process all images in parallel for maximum speed
-    const results = await Promise.allSettled(
-      req.files.map(async (file) => {
-        const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
-        let imageUrl = `/uploads/${file.filename}`;
+    // Process images sequentially to respect Gemini API rate limits (5 req/min free tier)
+    const results = [];
+    const DELAY_BETWEEN_REQUESTS = 2000; // 2 seconds between requests
 
-        try {
-          const result = await extractProductsFromSingleImage(imagePath);
-          const products = [];
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const imagePath = path.join(__dirname, '..', 'uploads', file.filename);
+      let imageUrl = `/uploads/${file.filename}`;
 
-          for (const product of (result.products || [])) {
-            if (product.category_suggestion) {
-              const suggestion = product.category_suggestion.toLowerCase();
-              const matched = categories.find(c =>
-                c.name.toLowerCase().includes(suggestion) ||
-                suggestion.includes(c.name.toLowerCase())
-              );
-              if (matched) {
-                product.category_id = matched.id;
-                product.category_name = matched.name;
-              }
+      // Add delay between requests (skip first one)
+      if (i > 0) {
+        await new Promise(r => setTimeout(r, DELAY_BETWEEN_REQUESTS));
+      }
+
+      try {
+        const result = await extractProductsFromSingleImage(imagePath);
+        const products = [];
+
+        for (const product of (result.products || [])) {
+          if (product.category_suggestion) {
+            const suggestion = product.category_suggestion.toLowerCase();
+            const matched = categories.find(c =>
+              c.name.toLowerCase().includes(suggestion) ||
+              suggestion.includes(c.name.toLowerCase())
+            );
+            if (matched) {
+              product.category_id = matched.id;
+              product.category_name = matched.name;
             }
-
-            product.image = imageUrl;
-            product.images = [imageUrl];
-            products.push(product);
           }
 
-          return { file, products, imagePath, imageUrl };
-        } catch (err) {
-          throw err;
+          product.image = imageUrl;
+          product.images = [imageUrl];
+          products.push(product);
         }
-      })
-    );
+
+        results.push({ status: 'fulfilled', value: { file, products, imagePath, imageUrl } });
+      } catch (err) {
+        results.push({ status: 'rejected', reason: err, file });
+      }
+    }
 
     // Upload successful images to Cloudinary in parallel (non-blocking for product creation)
     const fulfilledResults = results.filter(r => r.status === 'fulfilled');
@@ -107,14 +114,14 @@ router.post('/extract-product', auth, adminOnly, (req, res, next) => {
       );
     }
 
-    // Collect products and per-image errors from parallel results
-    results.forEach((result, i) => {
+    // Collect products and per-image errors from sequential results
+    results.forEach((result) => {
       if (result.status === 'fulfilled') {
         for (const product of result.value.products) {
           allProducts.push(product);
         }
       } else {
-        const file = req.files[i];
+        const file = result.file;
         const reason = result.reason?.message || 'Unknown error';
         console.error(`AI extraction failed for ${file.filename}:`, reason);
 
@@ -128,7 +135,7 @@ router.post('/extract-product', auth, adminOnly, (req, res, next) => {
         }
 
         const isModelError = reason.includes('is no longer available') || reason.includes('NOT_FOUND') || reason.includes('404');
-        errors.push({ filename: file.filename, reason, isModelError, index: i });
+        errors.push({ filename: file.filename, reason, isModelError });
       }
     });
 

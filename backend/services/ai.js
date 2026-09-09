@@ -74,6 +74,30 @@ const FALLBACK_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-fla
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Simple concurrency limiter to prevent hitting rate limits
+let activeRequests = 0;
+const MAX_CONCURRENT = 1; // Only 1 concurrent Gemini request
+const requestQueue = [];
+
+async function throttle() {
+  if (activeRequests < MAX_CONCURRENT) {
+    activeRequests++;
+    return;
+  }
+  return new Promise((resolve) => {
+    requestQueue.push(resolve);
+  });
+}
+
+function release() {
+  activeRequests--;
+  if (requestQueue.length > 0) {
+    activeRequests++;
+    const next = requestQueue.shift();
+    next();
+  }
+}
+
 async function extractProductsFromSingleImage(imagePath) {
   const ext = path.extname(imagePath).toLowerCase().replace('.', '');
   const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', jfif: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
@@ -89,84 +113,98 @@ async function extractProductsFromSingleImage(imagePath) {
   const MAX_RETRIES = 3;
   let lastError = null;
 
-  for (const model of modelsToTry) {
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const response = await getClient().models.generateContent({
-          model,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: 'Analyze this image and extract ALL product information. If there are multiple products visible, list each one as a separate entry in the products array. Do not skip any product.' },
-                { inlineData: { mimeType, data: base64Image } },
-              ],
-            },
-          ],
-          config: {
-            systemInstruction: SYSTEM_PROMPT,
-            maxOutputTokens: 8192,
-            temperature: 0.1,
-          },
-        });
+  // Wait for throttle slot
+  await throttle();
 
-        const content = (response.text || '').trim();
-        if (!content) throw new Error('AI returned empty response');
-
-        let jsonStr = content;
-        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1].trim();
-        }
-
+  try {
+    for (const model of modelsToTry) {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const parsed = JSON.parse(jsonStr);
-          if (!parsed.products || !Array.isArray(parsed.products)) {
-            throw new Error('Invalid response structure');
-          }
-          if (model !== preferred) {
-            console.warn(`Fallback model succeeded: ${model} (preferred ${preferred} failed)`);
-          }
-          return parsed;
-        } catch (parseErr) {
-          console.error('Failed to parse AI response:', content);
-          throw new Error('AI returned invalid data. Please try again with a clearer image.');
-        }
-      } catch (err) {
-        lastError = err;
-        const msg = err.message || JSON.stringify(err);
-        const isModelNotFound =
-          msg.includes('404') ||
-          msg.includes('NOT_FOUND') ||
-          msg.includes('is no longer available') ||
-          msg.includes('not found') ||
-          msg.includes('model not found');
-        const isRetryable =
-          msg.includes('503') ||
-          msg.includes('UNAVAILABLE') ||
-          msg.includes('high demand') ||
-          msg.includes('overloaded') ||
-          msg.includes('rate limit');
+          const response = await getClient().models.generateContent({
+            model,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: 'Analyze this image and extract ALL product information. If there are multiple products visible, list each one as a separate entry in the products array. Do not skip any product.' },
+                  { inlineData: { mimeType, data: base64Image } },
+                ],
+              },
+            ],
+            config: {
+              systemInstruction: SYSTEM_PROMPT,
+              maxOutputTokens: 8192,
+              temperature: 0.1,
+            },
+          });
 
-        if (isModelNotFound) {
-          console.warn(`Model ${model} not available: ${msg}. Trying fallback...`);
-          break; // try next model
+          const content = (response.text || '').trim();
+          if (!content) throw new Error('AI returned empty response');
+
+          let jsonStr = content;
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) {
+            jsonStr = jsonMatch[1].trim();
+          }
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (!parsed.products || !Array.isArray(parsed.products)) {
+              throw new Error('Invalid response structure');
+            }
+            if (model !== preferred) {
+              console.warn(`Fallback model succeeded: ${model} (preferred ${preferred} failed)`);
+            }
+            return parsed;
+          } catch (parseErr) {
+            console.error('Failed to parse AI response:', content);
+            throw new Error('AI returned invalid data. Please try again with a clearer image.');
+          }
+        } catch (err) {
+          lastError = err;
+          const msg = err.message || JSON.stringify(err);
+          const isModelNotFound =
+            msg.includes('404') ||
+            msg.includes('NOT_FOUND') ||
+            msg.includes('is no longer available') ||
+            msg.includes('not found') ||
+            msg.includes('model not found');
+          const isRateLimit =
+            msg.includes('429') ||
+            msg.includes('RESOURCE_EXHAUSTED') ||
+            msg.includes('quota') ||
+            msg.includes('rate limit');
+          const isRetryable =
+            msg.includes('503') ||
+            msg.includes('UNAVAILABLE') ||
+            msg.includes('high demand') ||
+            msg.includes('overloaded') ||
+            isRateLimit;
+
+          if (isModelNotFound) {
+            console.warn(`Model ${model} not available: ${msg}. Trying fallback...`);
+            break; // try next model
+          }
+          if (isRetryable && attempt < MAX_RETRIES) {
+            // Use longer delays for rate limit errors (429)
+            const baseDelay = isRateLimit ? 10000 : 2000;
+            const delay = baseDelay * Math.pow(2, attempt); // 10s/20s/40s for 429, 2s/4s/8s for 503
+            console.warn(`Gemini error for ${model} (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms...`);
+            await sleep(delay);
+            continue;
+          }
+          // Non-retriable -> fail fast
+          throw err;
         }
-        if (isRetryable && attempt < MAX_RETRIES) {
-          const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
-          console.warn(`Gemini 503 for ${model} (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms...`);
-          await sleep(delay);
-          continue;
-        }
-        // Non-retriable -> fail fast
-        throw err;
       }
     }
-  }
 
-  // All models exhausted
-  if (lastError) throw lastError;
-  throw new Error('AI extraction failed - no model available');
+    // All models exhausted
+    if (lastError) throw lastError;
+    throw new Error('AI extraction failed - no model available');
+  } finally {
+    release();
+  }
 }
 
 module.exports = { extractProductsFromSingleImage, isApiKeyConfigured, resetClient, getClient };
